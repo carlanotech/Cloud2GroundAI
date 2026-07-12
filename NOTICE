@@ -1,0 +1,73 @@
+Cloud2GroundAI
+Copyright 2026 Carlano Technology Solutions LLC
+
+This product includes software developed by Carlano Technology Solutions LLC
+(https://carlano.com).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file at the
+root of this repository for the full text.
+
+────────────────────────────────────────────────────────────────────────────
+
+THIRD-PARTY SOFTWARE
+
+This product does not bundle or redistribute third-party source code. At
+runtime it expects the user to install and run the following independent
+components on their own machine. None of these are included in this
+repository; they are installed by the user (or, optionally, by the C2G
+Setup Wizard, which downloads them directly from their respective vendors).
+
+  • Ollama — https://ollama.com — MIT License
+    Local model runtime. Installed by the user via Homebrew (`brew install
+    ollama`) or the Ollama macOS installer.
+
+  • IBM Granite 4.1 — https://huggingface.co/ibm-granite — Apache 2.0 License
+    Local language model. Pulled by the user via `ollama pull granite4.1:8b`
+    (or :30b for the larger tier).
+
+  • Homebrew (optional) — https://brew.sh — BSD-2-Clause License
+    Package manager. Only invoked by the Setup Wizard if the user opts to
+    install Ollama via Homebrew rather than the direct macOS installer.
+
+  • Claude Desktop / Cowork / Claude Code — https://claude.com
+    Anthropic-published clients that consume the ollama-delegate skill.
+    Not redistributed by this project. Cloud2GroundAI does NOT call
+    the Anthropic API directly; integration is entirely via the user's
+    own Claude installation reading the skill from
+    ~/.claude/skills/ollama-delegate/.
+
+────────────────────────────────────────────────────────────────────────────
+
+TRADEMARKS
+
+  • "Cloud2GroundAI" and the leaf logo are unregistered trademarks
+    of Carlano Technology Solutions LLC.
+
+  • "Claude," "Anthropic," and related marks are property of Anthropic, PBC.
+    Use of these marks in this project's documentation is descriptive only
+    and does not imply endorsement.
+
+  • "IBM" and "Granite" are trademarks of International Business Machines
+    Corporation.
+
+  • "Ollama" is a trademark of Ollama, Inc.
+
+────────────────────────────────────────────────────────────────────────────
+
+DATA / PRIVACY DISCLOSURE
+
+Cloud2GroundAI makes one outbound network connection by default, and it
+carries no user content:
+
+  • The bundled skill update channel defaults to "Stable," which fetches a
+    JSON manifest from a Carlano-published HTTPS endpoint roughly once per
+    24 hours to check for a newer skill version. No prompts, code, file
+    contents, or other user content are sent. Set the channel to "Disabled"
+    in Settings → Updates to turn this off entirely.
+
+  • Anonymous usage telemetry and feedback/crash uploads are off by default
+    and individually toggleable in the Privacy tab of the Settings panel.
+
+User prompts, model responses, file contents, and conversation history
+never leave the user's machine by default. See docs/faq.md for the full
+data-handling description.

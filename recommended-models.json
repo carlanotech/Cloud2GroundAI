@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-06-29",
+
+  "_doc": "Recommended local models for Cloud2GroundAI. Consumed by the C2G Mac app's update-nudge mechanism: on each launch, if the user's installed model is older than the recommended version OR uses a model family not on this list, the Status Panel shows a nudge to update. This file is part of the skill repo, not the watcher repo, so updates ship as part of the skill update channel.",
+
+  "primary": {
+    "model": "granite4.1:8b",
+    "family": "granite4.1",
+    "tier": "balanced",
+    "size_mb": 5400,
+    "min_ollama_version": "0.24.0",
+    "min_ram_gb": 16,
+    "tuning_file": "skill/models/granite4.1.md",
+    "released_at": "2026-04-15",
+    "rationale": "Apache 2.0 license consistent with C2G. 32K-128K context window. IBM benchmarks claim 8B beats 32B competitors for code tasks. Single family across two tiers (8b/30b) keeps skill maintenance manageable."
+  },
+
+  "alternatives": [
+    {
+      "model": "granite4.1:30b",
+      "family": "granite4.1",
+      "tier": "high_quality",
+      "size_mb": 17000,
+      "min_ollama_version": "0.24.0",
+      "min_ram_gb": 32,
+      "tuning_file": "skill/models/granite4.1.md",
+      "released_at": "2026-04-15",
+      "rationale": "Higher quality on complex multi-function generation, at ~3x the RAM cost. Recommended only for users with 32 GB+ machines."
+    },
+    {
+      "model": "granite-code:8b",
+      "family": "granite-code",
+      "tier": "legacy_balanced",
+      "size_mb": 4900,
+      "min_ollama_version": "0.20.0",
+      "min_ram_gb": 16,
+      "tuning_file": "skill/models/granite-code.md",
+      "released_at": "2025-12-01",
+      "rationale": "Previous generation. Retained for backward compatibility with v0.1.x installations. New users should prefer granite4.1:8b."
+    }
+  ],
+
+  "deprecated": [],
+
+  "_notes": {
+    "update_check_cadence": "C2G fetches this file when the user manually clicks 'Check for updates now' in Settings → Updates, OR once per 24h at app launch if the Stable channel is enabled.",
+    "endpoint_url": "Wired into the Mac app at release time. Reference URL pattern: https://raw.githubusercontent.com/carlanotech/Cloud2GroundAI/main/recommended-models.json",
+    "field_meaning": {
+      "model": "Exact Ollama model identifier (use with `ollama pull <model>`).",
+      "family": "Used to match per-model prompt wrapping / Ollama options. See protocol/SPEC.md §6.2 and §6.3.",
+      "tier": "balanced | high_quality | legacy_balanced — user-facing label.",
+      "size_mb": "Approximate disk size of the model file.",
+      "min_ollama_version": "Minimum Ollama version known to work with this model.",
+      "min_ram_gb": "Minimum recommended system RAM for usable inference speed.",
+      "tuning_file": "Path inside the skill to the tuning file for this model family.",
+      "released_at": "Model release date per upstream publisher.",
+      "rationale": "Why this model is on the list (or no longer is, if in deprecated)."
+    }
+  }
+}

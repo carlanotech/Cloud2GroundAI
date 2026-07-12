@@ -1,0 +1,99 @@
+# Cloud2GroundAI — .gitignore
+
+# ─── macOS ──────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+.VolumeIcon.icns
+
+# ─── Xcode ──────────────────────────────────────────────────────────────────
+# User-specific Xcode files. Project-level files (.xcodeproj/project.pbxproj,
+# the workspace, schemes you want to share) ARE checked in.
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/
+*.moved-aside
+
+# ─── Swift / SwiftPM ────────────────────────────────────────────────────────
+.build/
+Packages/
+Package.pins
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
+*.egg-info/
+
+# ─── Internal / private artifacts (must never land in public repo) ──────────
+# Legal / strategy
+C2G_Anthropic_Legal_Positioning*.docx
+C2G_Anthropic_Legal_Positioning*.pdf
+*Anthropic Letter*
+Cover Email to Anthropic.md
+
+# Internal SE / planning
+SE/
+*_REGEN.docx
+*_REGEN.xlsx
+# Two naming conventions have been used for these session handoff notes —
+# match both so neither slips through.
+Morning Briefing*
+MORNING_BRIEFING*
+[Mm]orning[_ ][Bb]riefing*
+
+# Website source (lives in its own repo)
+carlano-website/
+
+# Local watcher state and logs
+ollama_bridge.log
+ollama_bridge.log.*
+_bridge/
+*.lock
+
+# macOS app build products (the DMG is the only thing we ship, and it comes
+# from scripts/build-dmg.sh on a release runner)
+*.app
+*.dmg
+*.pkg
+
+# ─── IDE / editor noise ─────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─── Staging artifacts (kept locally, never published) ──────────────────────
+# Skill payload zips are uploaded as GitHub Release assets, not committed to the
+# repo tree. .Rhistory / zi9f5ByM are stray local scratch files.
+*.zip
+.Rhistory
+zi9f5ByM
+
+# ─── Misc ───────────────────────────────────────────────────────────────────
+# The watcher creates these in the bridge folder; they shouldn't be checked in
+# even if a tester runs the watcher inside the repo by accident.
+request.txt
+response.txt
+consumed.txt
+processing.lock
