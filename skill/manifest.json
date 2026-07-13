@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "channel": "stable",
-  "released_at": "2026-07-12T00:00:00Z",
-  "payload_url": "https://github.com/carlanotech/Cloud2GroundAI/releases/download/skill-v0.3.5/ollama-delegate-0.3.5.zip",
-  "payload_sha256": "78ad1f3ce211aa43605fa65ee32f0cb9acfade7135e80e5c1c632bab18697a96",
-  "release_notes": "Skill 0.3.5 (ships with Mac app v1.5). Adds a self-healing reconcile step to Step 4: before sending, the skill clears an orphaned response left by an aborted or ad-hoc read (writing consumed.txt to release the watcher), and refuses to send into a bridge that still holds a stale response — fixing the 'answers once, then goes silent' hang where the watcher would never pick up a second request. Also states the invariant that any response.txt you read must be acknowledged with consumed.txt (including probes), and forbids improvised PONG liveness pings in favor of the processing.lock signal. Protocol unchanged (v0.2.5). Note: the payload zip carries a manifest.json internally — the served copy (this file) is authoritative; installed-version detection uses skill/VERSION.",
+  "released_at": "2026-07-12T18:00:00Z",
+  "payload_url": "https://github.com/carlanotech/Cloud2GroundAI/releases/download/skill-v0.3.6/ollama-delegate-0.3.6.zip",
+  "payload_sha256": "cdd75664859f526b34b6caa85c6352c46cca4e9ee3f882dbe7c3812de76a3cd9",
+  "release_notes": "Skill 0.3.6. Smoother bridge connection: when the ~/claude_bridge folder isn't connected to a Cowork session yet, the skill now requests it directly — a one-click connect prompt via a folder-request tool (e.g. request_cowork_directory) — instead of asking you to hunt for it in the folder picker. Falls back to the manual prompt where no such tool exists, and to reading ~/claude_bridge directly on the host (Claude Code). Protocol unchanged (v0.2.5). Builds on 0.3.5's self-healing reconcile fix for the 'answers once, then goes silent' hang.",
   "_doc": "Skill update manifest. Consumed by the C2G Mac app's SkillUpdateManager. The 'stable' channel manifest lives at https://raw.githubusercontent.com/carlanotech/Cloud2GroundAI/main/skill/manifest.json (or wherever the app is wired to look). Future versions overwrite this file; older versions stay accessible via git history. The payload_url is a fully-qualified URL to a zip archive containing the skill directory at its root (or one level of wrapping folder — the installer handles both).",
   "_payload_sha256_note": "Set to null in v0.2 manifests; v1.0+ manifests MUST include a SHA-256 of the payload zip. SkillUpdateManager logs a warning when the field is absent."
 }

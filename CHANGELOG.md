@@ -13,6 +13,21 @@ _Nothing yet._
 
 ---
 
+## [skill 0.3.6] — 2026-07-12
+
+Skill-only update — no Mac app change, delivered through the in-app updater.
+
+### Changed
+
+- **Smoother bridge connection.** When `~/claude_bridge` isn't connected to a
+  Cowork session yet, the skill now requests it directly (a one-click connect
+  prompt via a folder-request tool such as `request_cowork_directory`) instead
+  of asking you to find it in the folder picker. Falls back to the manual
+  prompt where no such tool exists, and to reading `~/claude_bridge` directly
+  on the host (Claude Code).
+
+---
+
 ## [Mac app v1.5 · skill 0.3.5] — 2026-07-12
 
 Numeric rebrand to **Cloud2GroundAI**, and a fix for the bridge

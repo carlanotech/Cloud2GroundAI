@@ -117,11 +117,23 @@ you acknowledge with `consumed.txt`** — no exceptions, including probes.
 start it before proceeding (see prior guidance in `SKILL.md` history; the
 exact terminal command is system-specific).
 
-**Outcome C — bridge folder not found**: handle everything yourself, no
-mention needed. If this is a Cowork session and the bridge was expected,
-the likely cause is that `~/claude_bridge` just isn't connected as a folder
-yet — that's a separate grant from the project folder. Ask the user to add
-it via Cowork's folder picker, then retry Step 1.
+**Outcome C — bridge folder not found**: the likely cause is that
+`~/claude_bridge` just isn't connected to this session yet — it's a separate
+grant from the project folder, and in a sandboxed Cowork session it must be
+mounted before Step 1 can see it. Don't make the user hunt for it:
+
+- **If a folder-request tool is available** (e.g. `request_cowork_directory`
+  in Cowork), call it with path `~/claude_bridge` to pop a one-click connect
+  prompt, then retry Step 1. This is the smooth path — prefer it.
+- **If no such tool exists** (e.g. some Claude Code setups) but the user is on
+  the host, `~/claude_bridge/_bridge` may be readable directly — the Step 1
+  check already tries that path.
+- **Only if neither works**, ask the user to connect `~/claude_bridge` via
+  Cowork's folder picker, then retry Step 1.
+
+If the bridge genuinely isn't set up (no `~/claude_bridge` at all), the user
+hasn't installed the Mac app / run its setup wizard yet — handle the task
+yourself, no mention needed.
 
 **History (2026-07-06):** this used to point at `~/Documents/claude_bridge`.
 Moved to `~/claude_bridge` (outside Documents) because macOS TCC blocks a
