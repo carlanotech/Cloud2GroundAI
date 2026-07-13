@@ -13,6 +13,22 @@ _Nothing yet._
 
 ---
 
+## [skill 0.3.7] — 2026-07-13
+
+Skill-only update, delivered through the in-app updater.
+
+### Fixed
+
+- **Sandbox-safe polling.** Step 4 now waits for the model's response in short
+  (~35s) chunks across separate shell calls instead of one long 90–120s call. A
+  Cowork sandbox caps a single `bash` call at ~45s, which was killing the poll
+  mid-wait and misreporting a perfectly good delegation as a failure (seen in
+  the 2026-07-13 Material-Optimization bridge test). Total elapsed is derived
+  from `request.txt`'s age so the timeout budget still holds across the separate
+  calls. Protocol unchanged (v0.2.5).
+
+---
+
 ## [skill 0.3.6] — 2026-07-12
 
 Skill-only update — no Mac app change, delivered through the in-app updater.

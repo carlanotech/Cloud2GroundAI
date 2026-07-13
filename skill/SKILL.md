@@ -1,6 +1,6 @@
 ---
 name: ollama-delegate
-version: 0.3.6
+version: 0.3.7
 description: >
   Standing operating procedure for routing mechanical subtasks from a cloud
   AI assistant to a local model via the file-based bridge protocol. Use this
@@ -266,53 +266,74 @@ fi
 PROMPT
 } > "$BRIDGE/request.txt"
 
-# How long to poll comes from bridge_config.json — written by the Mac
-# app's BridgeConfigWriter whenever the user moves the Settings timeout
-# slider ("leash length"), living right in $BRIDGE alongside the request/
-# response files. This used to be a hardcoded 90 here, independently
-# hardcoded to 120 in start_local_ai.sh, and claimed as 60 in
-# protocol/SPEC.md — three numbers that had already drifted from each
-# other. Reading the same file the watcher reads keeps both sides honest.
-# Falls back to 120s (matching the watcher's own fallback) if the file is
-# missing, malformed, or non-positive.
-# python-free: read delegation_timeout_seconds with sed, drop any decimal,
-# and fall back to 120 if the file is missing, malformed, or non-positive.
+```
+
+**Poll in sandbox-safe chunks — this is a SEPARATE shell call, run more than once.**
+A Cowork sandbox caps a single `bash` call at ~45 s, so do NOT poll the full
+90–120 s budget in one call — it gets killed mid-wait and looks like a failure
+even though the request was written fine (this is the friction the
+2026-07-13 Material-Optimization test hit). Instead run the block below and
+**re-run it** until it prints `DONE`, `TIMEOUT`, or `WATCHER-DOWN`. State does
+not persist between `bash` calls, so elapsed time is derived from `request.txt`'s
+age, and `REQ_ID` is the id you wrote in the send step above.
+
+```bash
+# ── POLL ONE CHUNK — re-run until it prints DONE / TIMEOUT / WATCHER-DOWN ──
+CHUNK=35   # stay comfortably under the ~45s single-call cap
+
+# Budget (seconds) from bridge_config.json — the SAME source the watcher reads
+# (written by the app's Settings "leash length" slider). Falls back to 120s to
+# match the watcher's own fallback. Don't reintroduce a competing hardcoded
+# number; three of them had already drifted (skill 90 / watcher 120 / SPEC 60)
+# before this was unified in 2026-07-03.
 POLL_SECONDS=$(sed -n 's/.*"delegation_timeout_seconds"[[:space:]]*:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' \
     "$BRIDGE/bridge_config.json" 2>/dev/null | head -n 1)
-POLL_SECONDS=${POLL_SECONDS%%.*}          # integer part only
-case "$POLL_SECONDS" in
-    ''|*[!0-9]*) POLL_SECONDS=120 ;;      # missing / malformed
-    0) POLL_SECONDS=120 ;;                # non-positive
-esac
+POLL_SECONDS=${POLL_SECONDS%%.*}
+case "$POLL_SECONDS" in ''|*[!0-9]*|0) POLL_SECONDS=120 ;; esac
 
-# Poll up to $POLL_SECONDS; verify id echo before accepting
-for i in $(seq 1 "$POLL_SECONDS"); do
+# Total elapsed is derived from request.txt's age so it survives across the
+# separate bash calls (the watcher removes request.txt only when it takes our
+# request; while we wait, it sits there and its mtime is our clock).
+now=$(date +%s)
+mtime=$(stat -c %Y "$BRIDGE/request.txt" 2>/dev/null || stat -f %m "$BRIDGE/request.txt" 2>/dev/null || echo "$now")
+elapsed=$(( now - mtime ))
+first_chunk=0; [ "$elapsed" -lt "$CHUNK" ] && first_chunk=1
+
+for i in $(seq 1 "$CHUNK"); do
     if [ -f "$BRIDGE/response.txt" ] && [ ! -f "$BRIDGE/processing.lock" ]; then
         FIRST=$(head -n 1 "$BRIDGE/response.txt")
         if [ "$FIRST" = "# id: $REQ_ID" ]; then
-            RESPONSE=$(tail -n +2 "$BRIDGE/response.txt")
-            echo "done" > "$BRIDGE/consumed.txt"
-            break
+            echo "=== DONE ==="
+            tail -n +2 "$BRIDGE/response.txt"
+            echo "done" > "$BRIDGE/consumed.txt"   # acknowledge → watcher clears it
+            exit 0
         fi
-        # Mismatched id = a LEFTOVER from an earlier request, not our answer.
-        # On slow hardware a previous inference can finish late and overwrite
-        # response.txt with its OLD id while we're waiting for ours. Do NOT
-        # accept it and do NOT bail (that caused a false negative — see
-        # BRIDGE_NOTES #4). Leave cleanup to the watcher (don't write
-        # consumed.txt for someone else's response) and keep polling for OUR
-        # id until the timeout. RESPONSE stays unset; if it's still unset when
-        # the loop ends, we fall back to handling the task in the cloud.
+        # id mismatch = a LEFTOVER from an earlier request (a slow prior
+        # inference finishing late). Ignore it, do NOT write consumed.txt for
+        # someone else's answer, and keep polling for OUR id.
     fi
-    # Sandboxed liveness check (see Step 1): the first ~10s is the real
-    # "is the watcher even alive" signal when curl/pgrep couldn't tell us.
-    if [ "$SANDBOXED" = "1" ] && [ "$i" -eq 10 ] && [ ! -f "$BRIDGE/processing.lock" ] && [ ! -f "$BRIDGE/response.txt" ]; then
-        # No processing.lock within 10s = watcher isn't picking up requests.
-        # Stop waiting, treat as Outcome B, and fall back to handling it yourself.
-        break
+    # Sandboxed liveness (see Step 1): no processing.lock within the first ~10s
+    # means the watcher isn't picking requests up. Only meaningful on chunk 1.
+    if [ "$first_chunk" = 1 ] && [ "$i" -eq 10 ] \
+       && [ ! -f "$BRIDGE/processing.lock" ] && [ ! -f "$BRIDGE/response.txt" ]; then
+        echo "=== WATCHER-DOWN: no processing.lock in 10s — watcher isn't picking up requests ==="
+        exit 0
     fi
     sleep 1
 done
+
+# Not answered this chunk — decide whether to keep waiting.
+now=$(date +%s); elapsed=$(( now - mtime ))
+if [ "$elapsed" -ge "$POLL_SECONDS" ]; then
+    echo "=== TIMEOUT after ~${elapsed}s (budget ${POLL_SECONDS}s) — handle the task in the cloud ==="
+else
+    echo "=== WAITING (~${elapsed}s of ${POLL_SECONDS}s) — RE-RUN this poll chunk ==="
+fi
 ```
+
+Outcomes: **`DONE`** → the text after the `=== DONE ===` line is the model's
+answer; go to Step 5. **`WATCHER-DOWN`** or **`TIMEOUT`** → handle the task
+yourself in the cloud; do not retry the local model on the same prompt.
 
 If no matching response within `$POLL_SECONDS`, fall back to handling the
 task yourself. Do not retry the local model on the same prompt.

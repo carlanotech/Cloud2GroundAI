@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "channel": "stable",
-  "released_at": "2026-07-12T18:00:00Z",
-  "payload_url": "https://github.com/carlanotech/Cloud2GroundAI/releases/download/skill-v0.3.6/ollama-delegate-0.3.6.zip",
-  "payload_sha256": "05d4d6c8743853da37580538419df5ad234603f69a3948220a8bf772fe4b6fe5",
-  "release_notes": "Skill 0.3.6. Smoother bridge connection: when the ~/claude_bridge folder isn't connected to a Cowork session yet, the skill now requests it directly — a one-click connect prompt via a folder-request tool (e.g. request_cowork_directory) — instead of asking you to hunt for it in the folder picker. Falls back to the manual prompt where no such tool exists, and to reading ~/claude_bridge directly on the host (Claude Code). Protocol unchanged (v0.2.5). Builds on 0.3.5's self-healing reconcile fix for the 'answers once, then goes silent' hang.",
+  "released_at": "2026-07-13T17:00:00Z",
+  "payload_url": "https://github.com/carlanotech/Cloud2GroundAI/releases/download/skill-v0.3.7/ollama-delegate-0.3.7.zip",
+  "payload_sha256": "684fa9feecdafd85bff54d262b7254ae5cfd4829356677ba1ff211333c1dbfa7",
+  "release_notes": "Skill 0.3.7. Sandbox-safe polling: Step 4 now waits for the model's response in short (~35s) chunks across separate shell calls instead of one long 90-120s call. A Cowork sandbox caps a single bash call at ~45s, which was killing the poll mid-wait and misreporting a perfectly good delegation as a failure (seen in the 2026-07-13 Material-Optimization bridge test). Total elapsed is derived from request.txt's age so the timeout budget still holds across the separate calls. Protocol unchanged (v0.2.5). Builds on 0.3.6 (auto-request bridge folder) and 0.3.5 (self-healing reconcile for the 'answers once, then goes silent' hang).",
   "_doc": "Skill update manifest. Consumed by the C2G Mac app's SkillUpdateManager. The 'stable' channel manifest lives at https://raw.githubusercontent.com/carlanotech/Cloud2GroundAI/main/skill/manifest.json (or wherever the app is wired to look). Future versions overwrite this file; older versions stay accessible via git history. The payload_url is a fully-qualified URL to a zip archive containing the skill directory at its root (or one level of wrapping folder — the installer handles both).",
   "_payload_sha256_note": "Set to null in v0.2 manifests; v1.0+ manifests MUST include a SHA-256 of the payload zip. SkillUpdateManager logs a warning when the field is absent."
 }
