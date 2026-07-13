@@ -1,6 +1,6 @@
 ---
 name: ollama-delegate
-version: 0.3.5
+version: 0.3.6
 description: >
   Standing operating procedure for routing mechanical subtasks from a cloud
   AI assistant to a local model via the file-based bridge protocol. Use this
