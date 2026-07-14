@@ -152,7 +152,7 @@ mkdir -p "$BRIDGE"
 rm -f "$BRIDGE/request.txt" "$BRIDGE/response.txt" "$BRIDGE/consumed.txt" 2>/dev/null
 rm -f "$BRIDGE"/*.lock 2>/dev/null
 
-WATCHER_VERSION="0.2.9"
+WATCHER_VERSION="0.2.10"
 
 echo "✓ Bridge ready at $BRIDGE"
 echo ""
@@ -185,11 +185,20 @@ write_status_json() {
 # Emit an initial beat immediately so `status` works the moment the bridge is up.
 write_status_json "$BRIDGE" "$MODEL" "$WATCHER_VERSION" "$$" 0 idle
 
-# ── Cleanup on exit ───────────────────────────────────────────────────────────
-# Remove status.json too, so a stopped watcher doesn't leave a stale heartbeat
-# that a reader might misread (the seq-advance check already guards this, but a
-# clean exit is tidier).
-trap 'echo ""; echo "→ Shutting down..."; [ -n "$BRIDGE" ] && find "$BRIDGE" -mindepth 1 -maxdepth 1 -delete 2>/dev/null; echo "✓ Done."' EXIT INT TERM
+# ── Cleanup on exit / shutdown (v0.2.10, 2026-07-14) ──────────────────────────
+# cleanup() removes only THIS watcher's transient protocol files — never
+# bridge_config.json (written by the app's Settings slider) and never an
+# unrelated file. The old handler ran `find "$BRIDGE" -mindepth 1 -delete` on
+# every signal, blanket-wiping the whole shared _bridge (config included), and
+# ran on TERM WITHOUT exiting — so a normal `kill` left the watcher running and
+# you needed `kill -9`. Now: scoped delete, and INT/TERM actually exit.
+cleanup() {
+    [ -n "$BRIDGE" ] && rm -f \
+        "$BRIDGE/request.txt" "$BRIDGE/response.txt" "$BRIDGE/consumed.txt" \
+        "$BRIDGE/processing.lock" "$BRIDGE/status.json" "$BRIDGE"/.payload.* 2>/dev/null
+}
+trap 'echo ""; echo "→ Shutting down..."; cleanup; echo "✓ Done."; exit 0' INT TERM
+trap 'cleanup' EXIT
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 loop_count=0
