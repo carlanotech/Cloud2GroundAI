@@ -13,6 +13,49 @@ _Nothing yet._
 
 ---
 
+## [Mac app v1.6 · skill 0.4.0] — 2026-07-13
+
+Makes local delegation **observable** and its acknowledgement **unskippable**.
+The Mac app now ships the v0.2.9 watcher and the 0.4.0 skill. The bridge
+protocol gains an optional `status.json` heartbeat (backward compatible — older
+clients ignore it).
+
+### Added
+
+- **`bridge_delegate` helper.** The delegation loop is now a single shipped
+  script (`status` / `send` / `poll` / `run`) instead of inline bash retyped
+  from Step 4. The `consumed.txt` acknowledgement is **unskippable by
+  construction**: a response body is emitted in exactly one code path, and that
+  path writes `consumed.txt` before it returns. This closes the "answers once,
+  then goes silent" wedge at the source rather than reconciling it after the
+  fact (the 2026-07-11 and 2026-07-13 hangs).
+- **Watcher heartbeat.** `start_local_ai.sh` (v0.2.9) writes `_bridge/status.json`
+  roughly every 2s — model, watcher version, pid, an advancing `seq`,
+  `last_seen`, and idle/processing state — written atomically (temp + rename). A
+  sandboxed client can finally tell *alive*, *busy*, and *dead* apart;
+  previously all three looked identical (files simply not moving). Liveness is
+  decided by the `seq` counter advancing, which is immune to host/sandbox clock
+  skew.
+
+### Changed
+
+- **Steps 1 and 4 call the helper.** `status` replaces the old `curl`/`pgrep`
+  probe (which false-negatived from a sandbox); `send`/`poll`/`run` replace the
+  inline request/response/ack loop. Sandbox-safe chunked polling (0.3.7) is
+  folded into `poll`.
+- **The active model is read from the heartbeat**, not guessed from whichever
+  tuning file happens to be present.
+- **Step 5 promotes smoke-testing returned code** from advice to a numbered
+  step.
+
+### Notes
+
+- The skill still works against an older watcher (it falls back to the
+  `processing.lock` liveness check). The heartbeat lights up once you install
+  v1.6 or restart the watcher.
+
+---
+
 ## [skill 0.3.7] — 2026-07-13
 
 Skill-only update, delivered through the in-app updater.

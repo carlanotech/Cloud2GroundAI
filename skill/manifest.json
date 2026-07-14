@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "channel": "stable",
   "released_at": "2026-07-13T17:00:00Z",
-  "payload_url": "https://github.com/carlanotech/Cloud2GroundAI/releases/download/skill-v0.3.7/ollama-delegate-0.3.7.zip",
-  "payload_sha256": "684fa9feecdafd85bff54d262b7254ae5cfd4829356677ba1ff211333c1dbfa7",
-  "release_notes": "Skill 0.3.7. Sandbox-safe polling: Step 4 now waits for the model's response in short (~35s) chunks across separate shell calls instead of one long 90-120s call. A Cowork sandbox caps a single bash call at ~45s, which was killing the poll mid-wait and misreporting a perfectly good delegation as a failure (seen in the 2026-07-13 Material-Optimization bridge test). Total elapsed is derived from request.txt's age so the timeout budget still holds across the separate calls. Protocol unchanged (v0.2.5). Builds on 0.3.6 (auto-request bridge folder) and 0.3.5 (self-healing reconcile for the 'answers once, then goes silent' hang).",
+  "payload_url": "https://github.com/carlanotech/Cloud2GroundAI/releases/download/skill-v0.4.0/ollama-delegate-0.4.0.zip",
+  "payload_sha256": "d2ee6ce21a7d4d6e48f1e427fce6392f4a909a71964b071e589d1a3c36934ca8",
+  "release_notes": "Skill 0.4.0. The delegation loop is now a shipped helper (bridge_delegate) instead of inline bash the caller retypes from Step 4 — the consumed.txt acknowledgement is unskippable by construction (a response body is emitted in exactly one code path, which acks before returning), closing the 'answers once then goes silent' watcher wedge for good (the 2026-07-11 and 2026-07-13 hangs). Adds a watcher heartbeat: start_local_ai.sh v0.2.9 writes _bridge/status.json, so a sandboxed client can finally tell alive / busy / dead apart (previously all identical — files just not moving) and reads the active model from the heartbeat instead of guessing it. Chunked sandbox-safe polling (0.3.7) is folded into the helper's poll. Step 5 promotes smoke-testing returned code from advice to a numbered step. The skill still works against an older watcher (it falls back to the processing.lock liveness check); the heartbeat lights up once you install the v1.6 app or restart the watcher.",
   "_doc": "Skill update manifest. Consumed by the C2G Mac app's SkillUpdateManager. The 'stable' channel manifest lives at https://raw.githubusercontent.com/carlanotech/Cloud2GroundAI/main/skill/manifest.json (or wherever the app is wired to look). Future versions overwrite this file; older versions stay accessible via git history. The payload_url is a fully-qualified URL to a zip archive containing the skill directory at its root (or one level of wrapping folder — the installer handles both).",
-  "_payload_sha256_note": "Set to null in v0.2 manifests; v1.0+ manifests MUST include a SHA-256 of the payload zip. SkillUpdateManager logs a warning when the field is absent."
+  "_payload_sha256_note": "Set to null in v0.2 manifests; v1.0+ manifests MUST include a SHA-256 of the payload zip. SkillUpdateManager logs a warning when the field is absent. NOTE: the copy of this manifest INSIDE the payload zip keeps payload_sha256 null (it cannot reference the zip that contains it); the authoritative standalone manifest served from raw.githubusercontent carries the real sha computed after zipping."
 }

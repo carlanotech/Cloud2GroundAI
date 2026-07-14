@@ -14,7 +14,7 @@ You may obtain a copy of the License at
 > your own machine.
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Download](https://img.shields.io/badge/download-v1.5-blue)](https://github.com/carlanotech/Cloud2GroundAI/releases/latest)
+[![Download](https://img.shields.io/badge/download-v1.6-blue)](https://github.com/carlanotech/Cloud2GroundAI/releases/latest)
 [![Status](https://img.shields.io/badge/status-public%20preview-orange)](#status)
 [![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey.svg)](#requirements)
 

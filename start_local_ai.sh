@@ -152,17 +152,43 @@ mkdir -p "$BRIDGE"
 rm -f "$BRIDGE/request.txt" "$BRIDGE/response.txt" "$BRIDGE/consumed.txt" 2>/dev/null
 rm -f "$BRIDGE"/*.lock 2>/dev/null
 
+WATCHER_VERSION="0.2.9"
+
 echo "✓ Bridge ready at $BRIDGE"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Local AI delegation is ACTIVE"
-echo "  Model: $MODEL  |  v0.2.8 (no python3 dependency — bash + perl)"
+echo "  Model: $MODEL  |  v${WATCHER_VERSION} (bash + perl, heartbeat status.json)"
 echo "  You can minimize this window — leave it running."
 echo "  Press Ctrl+C to shut down."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# ── Heartbeat (v0.2.9, 2026-07-13) ────────────────────────────────────────────
+# Writes _bridge/status.json so a sandboxed client can tell "watcher alive" from
+# "watcher dead" — three states (alive / stale-unacked / busy) that otherwise
+# look identical from the sandbox (skill feedback #2). Also publishes the active
+# model so the client stops guessing it (#4). `seq` is the loop counter: a
+# reader samples it twice and calls the watcher alive only if it ADVANCED, which
+# is immune to host/sandbox clock skew. Written atomically (temp + mv) so a
+# reader never sees a half-written file. NOTE: the bash loop blocks on the
+# synchronous perl inference, so the beat is set to "processing" just before
+# that block and resumes "idle" on the next tick after it returns.
+write_status_json() {
+    local dir="$1" model="$2" version="$3" pid="$4" seq="$5" state="$6"
+    local tmp="$dir/status.json.tmp.$$"
+    printf '{ "model": "%s", "watcher_version": "%s", "pid": %d, "seq": %d, "last_seen": %d, "state": "%s" }\n' \
+        "$model" "$version" "$pid" "$seq" "$(date +%s)" "$state" > "$tmp" 2>/dev/null \
+        && mv -f "$tmp" "$dir/status.json" 2>/dev/null
+}
+
+# Emit an initial beat immediately so `status` works the moment the bridge is up.
+write_status_json "$BRIDGE" "$MODEL" "$WATCHER_VERSION" "$$" 0 idle
+
 # ── Cleanup on exit ───────────────────────────────────────────────────────────
+# Remove status.json too, so a stopped watcher doesn't leave a stale heartbeat
+# that a reader might misread (the seq-advance check already guards this, but a
+# clean exit is tidier).
 trap 'echo ""; echo "→ Shutting down..."; [ -n "$BRIDGE" ] && find "$BRIDGE" -mindepth 1 -maxdepth 1 -delete 2>/dev/null; echo "✓ Done."' EXIT INT TERM
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
@@ -184,6 +210,12 @@ while true; do
         find "$BRIDGE" -name '*.lock' -type f -mmin +5 -delete 2>/dev/null
     fi
 
+    # Heartbeat every 4 ticks (~2s) while idle. Skip while a lock is held — the
+    # "processing" beat below owns the status during inference.
+    if [ $(( loop_count % 4 )) -eq 0 ] && [ ! -f "$BRIDGE/processing.lock" ]; then
+        write_status_json "$BRIDGE" "$MODEL" "$WATCHER_VERSION" "$$" "$loop_count" idle
+    fi
+
     # ── Process a new request ────────────────────────────────────────────────
     # Only if a request is present AND no stale response/consumed remain.
     # The cleanup pass above guarantees those are gone when consumed was set,
@@ -194,6 +226,10 @@ while true; do
        && [ ! -f "$BRIDGE/response.txt" ]; then
 
         echo "→ Task received — running local inference..."
+
+        # Mark the heartbeat "processing" BEFORE blocking on inference, so a
+        # client polling `status` sees BUSY (alive) rather than a frozen beat.
+        write_status_json "$BRIDGE" "$MODEL" "$WATCHER_VERSION" "$$" "$loop_count" processing
 
         perl - "$BRIDGE" "$MODEL" "$FAMILIES_FILE" << 'INFERENCE_PL'
 use strict;

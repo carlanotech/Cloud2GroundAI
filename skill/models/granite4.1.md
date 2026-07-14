@@ -205,6 +205,45 @@ direction (e.g. `range(n, 0, -1)` for a factorial loop where
 unusual. **No mitigation needed** unless a downstream reader is strict
 about idiom.
 
+### Shell string-parsing with `grep`/`sed` — recurring, two failure shapes
+
+**What goes wrong.** Ask granite for a POSIX-sh helper that pulls a value
+out of text with `grep`/`sed` and it produces the right *shape* but
+reliably trips on the fiddly bits. Two distinct shapes seen twice each
+(2026-07-13, `bridge_delegate` build — `json_num` and `json_str` both hit
+these):
+
+- **Line anchoring.** It anchors the pattern with `^` (optionally
+  `^ *"key"`), silently assuming each field sits on its own line. Fails on
+  single-line JSON like `{"seq":100,"state":"idle"}` where the key is
+  mid-line. Fix: use `grep -o`/`grep -Eo` with no `^` anchor.
+- **`\s` and other GNU-only regex.** It writes `\s` for whitespace, which
+  is a GNU grep extension — on the **BSD grep that ships with macOS** `\s`
+  matches a literal `s`, so the pattern silently never matches. Fix:
+  POSIX classes, `[[:space:]]`.
+- **Nested quotes.** In a double-quoted shell string it writes an inner
+  `"` unescaped, breaking the shell quoting outright; and it assumes no
+  space after the JSON colon (`"key":"v"`), so it misses `"key": "v"`.
+- **Exit-code logic.** It puts `$?`/`[ $? -eq 0 ]` after a `grep | sed`
+  pipe and checks `sed`'s exit (always 0 on empty input), so the "field
+  absent → return 1" contract doesn't fire. Fix: capture into a var and
+  test `[ -n "$v" ]`.
+
+**Mitigation.**
+
+- For any shell text-extraction delegation, **state the constraints in the
+  prompt**: "use `grep -o` with no `^` anchor (input may be one line); use
+  `[[:space:]]` not `\s` (must run on macOS BSD grep); allow optional
+  whitespace after a `:`; detect absence by testing whether the captured
+  value is empty, not via `$?` after a pipe."
+- Cloud verification should **run the function on a single-line input and
+  on an absent-key input**, not just read it — both failure shapes pass a
+  read and only fail at runtime.
+- These are cheap to correct but recur, so this is often a *patch*, not a
+  *verbatim* — factor that into routing. Structured *writers* (e.g.
+  `printf` a JSON line) granite does verbatim; it's the *parsers* that
+  stumble.
+
 ## Recommended prompts
 
 **Pattern A — single function from a textbook equation:**
