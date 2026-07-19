@@ -14,6 +14,12 @@ DEFAULT_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/c2g-mlx/.build/arm64-
 BIN="${C2G_MLX_BIN:-$DEFAULT_BIN}"
 
 export C2G_MLX_MODEL="$MODEL"
+# Must export this too, not just MODEL — c2g-mlx reads C2G_MLX_TEMPERATURE
+# directly, and without an explicit export here it only worked by
+# coincidence (both this script's fallback and main.swift's fallback happen
+# to be 0.2 today; nothing kept them in sync). This line makes the script
+# the actual source of truth.
+export C2G_MLX_TEMPERATURE="$TEMPERATURE"
 
 mkdir -p "$BRIDGE"
 
