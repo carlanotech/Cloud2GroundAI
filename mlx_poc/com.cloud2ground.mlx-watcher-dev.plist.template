@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Standalone dev-only LaunchAgent for watch_mlx_v2.sh — separate from the
+  app's own com.cloud2ground.watcher (LaunchAgentInstaller.swift), which is
+  still Ollama-wired pending its own Setup Wizard redesign. This one runs
+  the MLX watcher so it survives logout/reboot during development, without
+  touching the app's installer flow.
+
+  Everything referenced here is a COPY under __REPO__ (Application Support,
+  not the live dev tree) — launchd cannot exec anything inside the
+  ProtonDrive CloudStorage mount (confirmed 2026-07-19: EPERM on both cwd
+  and exec for a background LaunchAgent with no interactive session, same
+  class of TCC-style gotcha WatcherScriptInstaller.swift already documents
+  for ~/Documents). install_launchd_dev.sh copies watch_mlx_v2.sh, the
+  c2g-mlx binary, and mlx.metallib here before this plist is written.
+
+  Modeled on LaunchAgentInstaller.swift's battle-tested plist: KeepAlive +
+  ThrottleInterval so a crash restarts it but doesn't thrash; ProcessType
+  Background to avoid App Nap; PATH set explicitly since launchd's default
+  environment doesn't include Homebrew paths.
+
+  __REPO__ and __BIN__ are substituted by install_launchd_dev.sh.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cloud2ground.mlx-watcher-dev</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__REPO__/watch_mlx_v2.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>C2G_MLX_MODEL</key>
+        <string>mlx-community/granite-3.3-8b-instruct-8bit</string>
+        <key>C2G_MLX_TEMPERATURE</key>
+        <string>0.2</string>
+        <key>C2G_MLX_BIN</key>
+        <string>__BIN__</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <key>StandardOutPath</key>
+    <string>__REPO__/.launchd-watcher.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__REPO__/.launchd-watcher.err.log</string>
+</dict>
+</plist>

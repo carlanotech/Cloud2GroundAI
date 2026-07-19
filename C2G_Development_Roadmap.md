@@ -4,6 +4,16 @@
 **Date:** June 2026  
 **Author:** Andrew Carlile
 
+> **SUPERSEDED (2026-07-19):** v2.0 drops Ollama entirely — MLX-Swift is
+> the only backend now, no fallback. The Architecture Overview below
+> (Ollama via `localhost:11434`, `start_local_ai.sh`) describes the v0.1
+> design and is kept here as historical record, not current fact. For the
+> current architecture see `skill/SKILL-MLX.md`, `mlx_poc/MLX_PRODUCTION_PLAN.md`,
+> and `mlx_poc/MLX_MIGRATION_COMPLETE.md`. Short version: `watch_mlx_v2.sh`
+> replaces `start_local_ai.sh`, `c2g-mlx` (a Swift/MLX binary) replaces
+> Ollama, and the bridge folder is `~/claude_bridge/_bridge` (not
+> `~/Documents/claude_bridge`).
+
 ---
 
 ## Product Vision

@@ -2,6 +2,13 @@
 
 **Prepared:** June 2026
 **Owner:** Andrew Carlile / Carlano Technology Solutions LLC
+
+> **Note (2026-07-19):** written when Ollama was the backend. The repo
+> readiness gaps (LICENSE, NOTICE, CONTRIBUTING.md, etc.) still apply, but
+> anything describing the local-AI stack itself is stale — v2.0 is
+> MLX-only. See `skill/SKILL-MLX.md` and `mlx_poc/MLX_PRODUCTION_PLAN.md`
+> for current architecture before using this as a launch checklist.
+
 **Decisions baked into this plan:**
 
 - **Private repo first.** Push privately, finish it, make public later.
