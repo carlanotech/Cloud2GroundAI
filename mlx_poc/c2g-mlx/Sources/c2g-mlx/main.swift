@@ -63,7 +63,11 @@ let container = try await #huggingFaceLoadModelContainer(
 // ChatSession applies the model's chat template (correct for Granite instruct)
 // and returns the full completion string. For a one-shot CLI we create a fresh
 // session per invocation, so there is no history to manage.
-let session = ChatSession(container, generateParameters: GenerateParameters(temperature: temperature))
+// topP/maxTokens per MLX_PRODUCTION_PLAN.md Phase 1.1's documented recommendation.
+let session = ChatSession(
+    container,
+    generateParameters: GenerateParameters(maxTokens: 4096, temperature: temperature, topP: 0.9)
+)
 let output = try await session.respond(to: prompt)
 
 log("c2g-mlx: done (\(output.count) chars)")

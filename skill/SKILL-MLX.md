@@ -378,19 +378,27 @@ Same as v0.4.0:
 
 ---
 
-## Backward compatibility with Ollama
-
-If you encounter an old Ollama-based watcher:
-- `"backend"` field will be missing or `"ollama"`
-- Model name format: `granite4.1:8b` (not `mlx-community/granite-3.3-8b-instruct-8bit`)
-
-Still works! Use the same protocol. Just don't show savings (no `savings.json`).
-
-**Preferred:** Suggest user upgrades to MLX for better performance and zero dependencies.
-
----
-
 ## History
+
+**v2.1.0 (2026-07-18) — MLX-only, no Ollama fallback:**
+- Dropped the "backward compatibility with Ollama" path — v2.0 ships MLX-only
+- `bridge_delegate`'s `cmd_status()` no longer parses the legacy seq/state/
+  last_seen schema; it only understands the current status/last_heartbeat one
+- Fixed: `cmd_status()` was misreading the current schema as `DEAD` because it
+  only knew the old one — real bug, not a dead watcher
+- Fixed: `savings.json`'s `estimated_cost_saved_usd` could render without a
+  leading zero (`.013452`), invalid JSON — `bc` output quirk
+- Fixed: `C2G_MLX_TEMPERATURE` was shown in `status.json` but never actually
+  passed to the model — generation ran at library-default temperature 0.6,
+  not the documented 0.2
+- Added `topP: 0.9` and `maxTokens: 4096` to generation params per the
+  production plan's Phase 1.1 spec (previously unset/unbounded)
+- Ported markdown fence-stripping from the retired Ollama watcher — 8B output
+  embeds fenced code blocks inside prose, which is a real display difference
+  the mechanical delegation contract didn't previously handle
+- Default model changed 2B → 8B: the 2B model reliably produced malformed
+  code (JS/Python syntax mashups) on trivial prompts regardless of
+  temperature; 8B did not
 
 **v2.0.0 (2026-07-18) — MLX-Swift backend:**
 - Removed Ollama dependency entirely

@@ -81,53 +81,30 @@ _new_id() { printf 't-%s\n' "$(uuidgen 2>/dev/null | tr -d '-' | tr 'A-Z' 'a-z' 
 
 # ── subcommands ───────────────────────────────────────────────────────────────
 
-# status: idle pre-flight. Two schemas in the wild:
-#   legacy (Ollama-era): seq/state/last_seen — liveness = seq advancing across
-#     a short sample (survives clock skew: compares the watcher's counter to
-#     itself, not to our clock).
-#   current (MLX v2.0, watch_mlx_v2.sh): status/last_heartbeat, no seq counter
-#     at all — the watcher rewrites status.json every HEARTBEAT_INTERVAL (5s)
-#     regardless of activity, so liveness = heartbeat recency instead.
-# Run this when NO delegation is in flight; during one, poll's
-# processing.lock check is the liveness signal.
+# status: idle pre-flight. watch_mlx_v2.sh rewrites status.json every
+# HEARTBEAT_INTERVAL (5s) regardless of activity, so liveness = heartbeat
+# recency, not a counter. Run this when NO delegation is in flight; during
+# one, poll's processing.lock check is the liveness signal.
 HEARTBEAT_STALE_AFTER=12  # >2x watch_mlx_v2.sh's 5s HEARTBEAT_INTERVAL
 
 cmd_status() {
     local f="$BRIDGE/status.json"
     if [ ! -f "$f" ]; then
-        echo "NO-HEARTBEAT — watcher predates status.json (pre-v0.4) or isn't running"
+        echo "NO-HEARTBEAT — watcher isn't running"
         return 4
     fi
-    local model; model=$(json_str model "$f")
-
-    if grep -q '"last_heartbeat"' "$f" 2>/dev/null; then
-        local st hb age
-        st=$(json_str status "$f")
-        hb=$(json_num last_heartbeat "$f")
-        age=$(( $(_now) - ${hb:-0} ))
-        if [ "$st" = "processing" ]; then
-            echo "BUSY model=${model:-unknown} (watcher alive, mid-inference)"; return 0
-        fi
-        if [ "$st" = "ready" ] && [ "$age" -le "$HEARTBEAT_STALE_AFTER" ]; then
-            echo "ALIVE model=${model:-unknown} (heartbeat ${age}s ago)"; return 0
-        fi
-        echo "DEAD model=${model:-unknown} (status=${st:-unknown}, heartbeat ~${age}s ago)"
-        return 3
-    fi
-
-    local s1 st1
-    s1=$(json_num seq "$f"); st1=$(json_str state "$f")
-    sleep 3
-    local s2 st2
-    s2=$(json_num seq "$f"); st2=$(json_str state "$f")
-    if [ -n "$s1" ] && [ -n "$s2" ] && [ "$s2" -gt "$s1" ] 2>/dev/null; then
-        echo "ALIVE model=${model:-unknown} (seq ${s1}->${s2})"; return 0
-    fi
-    if [ "$st2" = "processing" ]; then
+    local model st hb age
+    model=$(json_str model "$f")
+    st=$(json_str status "$f")
+    hb=$(json_num last_heartbeat "$f")
+    age=$(( $(_now) - ${hb:-0} ))
+    if [ "$st" = "processing" ]; then
         echo "BUSY model=${model:-unknown} (watcher alive, mid-inference)"; return 0
     fi
-    local ls age; ls=$(json_num last_seen "$f"); age=$(( $(_now) - ${ls:-0} ))
-    echo "DEAD model=${model:-unknown} (seq stalled ${s1}->${s2}, last_seen ~${age}s ago)"
+    if [ "$st" = "ready" ] && [ "$age" -le "$HEARTBEAT_STALE_AFTER" ]; then
+        echo "ALIVE model=${model:-unknown} (heartbeat ${age}s ago)"; return 0
+    fi
+    echo "DEAD model=${model:-unknown} (status=${st:-unknown}, heartbeat ~${age}s ago)"
     return 3
 }
 

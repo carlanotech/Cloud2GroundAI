@@ -74,6 +74,16 @@ count_tokens() {
     echo $(( words * 13 / 10 ))
 }
 
+# Port of start_local_ai.sh's fence-stripping (MLX_PRODUCTION_PLAN.md Phase 1.1).
+# Deletes any line that's solely a ``` fence marker (opening w/ optional lang
+# tag, or bare closing), wherever it appears — not just a wrapping pair —
+# since real 8B output embeds fenced blocks inside surrounding prose.
+strip_fences() {
+    printf '%s\n' "$1" | sed -E '/^```[A-Za-z0-9_+-]*[[:space:]]*$/d' \
+        | sed -e '/./,$!d' -e '1!G;h;$!d' \
+        | sed -e '/./,$!d' -e '1!G;h;$!d'
+}
+
 update_savings() {
     local in_tok=$1
     local out_tok=$2
@@ -156,6 +166,7 @@ while true; do
         if [ $rc -ne 0 ]; then
             out="ERROR: c2g-mlx exit $rc"
         else
+            out=$(strip_fences "$out")
             output_tokens=$(count_tokens "$out")
             update_savings "$input_tokens" "$output_tokens"
             
