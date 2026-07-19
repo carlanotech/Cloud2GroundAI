@@ -1,0 +1,78 @@
+{
+  "last_updated": "2026-06-27 (second update)",
+  "notes": "2026-06-27 updates per Andrew: ACT-001 reframed as ongoing observation against real project work (STG + Carlano); ACT-002 closed with target = 50%; ACT-003 reframed as carbon transparency feature (PRD-006); ACT-004 superseded; ACT-005 CLOSED with decision: free OSS via GitHub Releases, notarized DMG, Apache-2.0, free preview through 2026-11-30; ACT-006 updated — covers feedback + opt-in usage during free preview (no separate trial mechanism needed since v1.0 is free); ACT-007 OPENED — pick paid distribution mechanism for v2.0 by 2026-10-15.",
+  "actions": [
+    {
+      "id": "ACT-001",
+      "title": "Continuously observe and log the C2G workload via real project work",
+      "description": "REFRAMED 2026-06-27: not a one-shot definition. The workload is what Andrew actually uses C2G for during real project work — initially STG (the active Cowork project) and other Carlano work. The 2026-06-27 worksheet captured a starting-point distribution (45% code generation, 29% code review, 9% SE planning, 17% other) which lives in SE/workload_observed.json. Telemetry (L2-OPS-006) will refine this continuously as we use the system. The skill (ollama-delegate) should also be updated as patterns emerge.",
+      "blocks": ["C2G-L1-PRD-002"],
+      "downstream_impact": 2,
+      "owner": "Andrew's actual work via Cowork (STG and other active projects)",
+      "status": "ongoing",
+      "notes": "Implementation: L2-OPS-006 telemetry + manual updates to SE/workload_observed.json and the ollama-delegate skill. Initial workload mix from 2026-06-27 worksheet."
+    },
+    {
+      "id": "ACT-002",
+      "title": "Set target token-reduction percentage for PRD-002",
+      "description": "CLOSED 2026-06-27: target set at 50% reduction (CBE ≥60% with 20% margin) per Andrew. Measurement mechanism moves to L2-OPS-006 (sampled A/B comparison).",
+      "blocks": ["C2G-L1-PRD-002"],
+      "downstream_impact": 0,
+      "owner": "Andrew",
+      "status": "closed",
+      "notes": "Closed_on: 2026-06-27. Value: 50% target. Implementation of the measurement: L2-OPS-006."
+    },
+    {
+      "id": "ACT-003",
+      "title": "Implement energy and carbon transparency feature",
+      "description": "REFRAMED 2026-06-27: was 'set energy-per-session target.' Per Andrew's direction this becomes a user-facing carbon transparency feature — implemented by new L1 PRD-006 and its 4 derived L2s (GUI display, grid-mix lookup, per-response estimate, onboarding capture). Rough-draft data sources now (national-average grid mix, public per-token energy estimates), refined over time.",
+      "blocks": ["C2G-L1-PRD-006"],
+      "downstream_impact": 4,
+      "owner": "Andrew + system (implementation work)",
+      "status": "open",
+      "notes": "Implementation: PRD-006 + L2-GUI-006, L2-OPS-005, L2-AI-008, L2-GUI-007. Treat as evolving — initial release ships with national-average grid mix and best-estimate per-token constants, refines on subsequent releases."
+    },
+    {
+      "id": "ACT-004",
+      "title": "Define reference workload for PRD-004 energy measurement",
+      "description": "SUPERSEDED 2026-06-27: original intent was a one-shot reference workload for a fixed energy-per-session measurement. With ACT-001 becoming an ongoing observation log and ACT-003 becoming a live carbon transparency feature, there is no separate reference workload needed — energy is measured live per response (L2-AI-008) and aggregated per conversation (L2-GUI-006).",
+      "blocks": [],
+      "downstream_impact": 0,
+      "owner": "—",
+      "status": "superseded",
+      "notes": "Andrew mentioned this can be done via 'STG project work' — clarification needed on what STG refers to. If STG is a specific measurement campaign for the energy constants in L2-AI-008, that work folds into L2-AI-008 closure."
+    },
+    {
+      "id": "ACT-005",
+      "title": "Decide distribution mechanism for v1.0 (free preview)",
+      "description": "CLOSED 2026-06-27 per Andrew: v1.0 ships free via GitHub Releases as a notarized DMG, Apache-2.0 source license, free public preview through 2026-11-30. Apple Developer enrollment (pending) is required for notarization. Mac App Store decision deferred to ACT-007 for v2.0 paid release.",
+      "blocks": ["C2G-L1-PRD-005"],
+      "downstream_impact": 0,
+      "owner": "Andrew",
+      "status": "closed",
+      "notes": "Closed_on: 2026-06-27. Decision: GitHub Releases + notarized DMG, Apache-2.0 source. Free preview window: through 2026-11-30. Monetization story: source remains open; binaries / subscription / support become paid in v2.0. License pivot (e.g. BSL) reserved as future option."
+    },
+    {
+      "id": "ACT-006",
+      "title": "Feedback and usage data during free preview",
+      "description": "UPDATED 2026-06-27: rather than 'trial mechanism' (which is moot since v1.0 is free OSS), this action covers collecting feedback and opt-in usage data during the free preview window so the v2.0 paid release can be informed by real usage. Implementation: L2-OPS-007 (weekly feedback prompt, opt-in) + L2-OPS-008 (anonymized usage telemetry, opt-in) + L2-GUI-008 (privacy settings panel). Defaults off per PRD-007. User trial recruitment for L1 PRD-005 check folds in here too — the free preview IS the user trial.",
+      "blocks": ["C2G-L1-PRD-005"],
+      "blockedBy": [],
+      "downstream_impact": 2,
+      "owner": "Andrew + system",
+      "status": "open",
+      "notes": "Active during the entire free-preview window (v1.0 launch through 2026-11-30). Telemetry endpoint TBD — probably a Cloudflare worker; can be a single hand-rolled HTTPS POST endpoint."
+    },
+    {
+      "id": "ACT-007",
+      "title": "Pick paid distribution mechanism for v2.0",
+      "description": "OPENED 2026-06-27. By 2026-10-15 (~6 weeks before the 2026-11-30 free-preview end), decide between: (a) Mac App Store — Apple handles subscription billing, requires sandbox-compatible local AI (pivot from Ollama to Apple MLX); (b) Notarized DMG + Paddle (or Lemon Squeezy) — keeps Ollama, requires payment-processor integration; (c) Hybrid — App Store for paid version, DMG for free OSS version. Drives L2-PLAT-001, L2-PLAT-002, L2-OPS-004 specialization for v2.0.",
+      "blocks": ["C2G-L1-PRD-005"],
+      "blockedBy": [],
+      "downstream_impact": 3,
+      "owner": "Andrew",
+      "status": "open",
+      "notes": "Target decision date: 2026-10-15. Hard date: 2026-11-30 (free preview ends). Inputs that should inform the decision: usage data from ACT-006 (what features actually get used), Apple Developer enrollment status, MLX-vs-Ollama feasibility experiment if App Store remains a candidate. 2026-06-27 architecture-correction implication: C2G needs to install a LaunchAgent for the bridge watcher (L2-OPS-011). In a sandboxed Mac App Store distribution, LaunchAgent installation outside the app's sandbox container is restricted and requires user approval each time. For notarized DMG distribution, LaunchAgent install into ~/Library/LaunchAgents/ is straightforward. This is a real cost on the App Store path that may push the decision toward DMG + Paddle."
+    }
+  ]
+}

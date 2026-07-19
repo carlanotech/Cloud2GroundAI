@@ -1,0 +1,120 @@
+{
+  "last_updated": "2026-06-27",
+  "source": "ACT-001 Workload Worksheet filled by Andrew 2026-06-27, plus future updates from L2-OPS-006 telemetry observations on real project work (initially STG and other active Carlano projects).",
+  "notes": "This file is the ongoing C2G workload definition. It is the SOURCE for the routing policy in L2-AI-003 and the measurement scope for L2-OPS-006. Per the ground-autoSE methodology this file evolves — re-run delegation policy tuning whenever this changes.",
+  "task_mix": {
+    "code_generation": {
+      "share_pct": 45,
+      "typical_prompt_length": "multi-paragraph + context",
+      "typical_response_length": "multiple files",
+      "local_delegation_confidence": "confident",
+      "useful_means": "compiles, runs, and does the asked thing",
+      "useless_means": "doesn't compile, wrong output, or wrong API",
+      "claude_verification_required": false,
+      "routing_default": "delegate to local"
+    },
+    "code_review_debugging": {
+      "share_pct": 29,
+      "typical_prompt_length": "paste a file",
+      "typical_response_length": "a corrected version",
+      "local_delegation_confidence": "partial",
+      "useful_means": "identifies the actual issue",
+      "useless_means": "identifies a non-issue, misses the real one",
+      "claude_verification_required": false,
+      "routing_default": "delegate to local (granite4.1 32K-128K context covers most files); route to Claude only for unusually large multi-file pastes"
+    },
+    "se_planning": {
+      "share_pct": 9,
+      "typical_prompt_length": "pasted artifact + question",
+      "typical_response_length": "long form with context",
+      "local_delegation_confidence": "partial",
+      "useful_means": "traceable to the input, internally consistent",
+      "useless_means": "violates the SE framework",
+      "claude_verification_required": true,
+      "routing_default": "delegate with Claude verification, or keep in Claude entirely if context is large"
+    },
+    "short_qa": {
+      "share_pct": 5,
+      "typical_prompt_length": "tweet-sized (≤50 words)",
+      "typical_response_length": "≤50 words",
+      "local_delegation_confidence": "partial",
+      "useful_means": "answer is correct on the facts",
+      "useless_means": "hallucinates a wrong fact",
+      "claude_verification_required": true,
+      "routing_default": "delegate to local with Claude verification (non-code → verify)"
+    },
+    "long_form_writing": {
+      "share_pct": 5,
+      "typical_prompt_length": "short brief",
+      "typical_response_length": "medium",
+      "local_delegation_confidence": "partial",
+      "useful_means": "matches voice and is factually right",
+      "useless_means": "wrong tone or factually wrong",
+      "claude_verification_required": true,
+      "routing_default": "delegate with Claude verification"
+    },
+    "editing_reformatting": {
+      "share_pct": 5,
+      "typical_prompt_length": "paste document",
+      "typical_response_length": "≈input length (2-page file)",
+      "local_delegation_confidence": "partial",
+      "useful_means": "preserves meaning, improves clarity",
+      "useless_means": "changes meaning or worsens clarity",
+      "claude_verification_required": true,
+      "routing_default": "delegate with Claude verification; route to Claude if document exceeds context window"
+    },
+    "summarization": {
+      "share_pct": 1,
+      "typical_prompt_length": "short text",
+      "typical_response_length": "structured summary",
+      "local_delegation_confidence": "partial",
+      "useful_means": "covers all major points, no fabrication",
+      "useless_means": "misses major points or invents content",
+      "claude_verification_required": true,
+      "routing_default": "delegate with Claude verification"
+    },
+    "brainstorming": {
+      "share_pct": 1,
+      "typical_prompt_length": "one question",
+      "typical_response_length": "a list with analysis",
+      "local_delegation_confidence": "partial",
+      "useful_means": "diverse, on-prompt ideas",
+      "useless_means": "repetitive or off-prompt",
+      "claude_verification_required": false,
+      "routing_default": "delegate to local (low-stakes — Claude verification adds little value for divergent thinking)"
+    }
+  },
+  "cost_model_projection": {
+    "method": "Sum of (share_pct × per-class cost multiplier from ollama-delegate cost model).",
+    "per_class_multipliers": {
+      "verbatim": 0.1,
+      "claude_verified_only": 0.3,
+      "patched": 0.3,
+      "rewritten": 1.1,
+      "cloud_only": 1.0
+    },
+    "projection_2026_06_27": {
+      "code_generation_45pct_verbatim": 0.045,
+      "code_review_29pct_local_or_cloud": 0.087,
+      "se_planning_9pct_verified": 0.027,
+      "short_qa_5pct_verified": 0.015,
+      "long_form_writing_5pct_verified": 0.015,
+      "editing_5pct_verified": 0.015,
+      "summarization_1pct_verified": 0.003,
+      "brainstorming_1pct_verbatim": 0.001,
+      "estimated_total_cost_multiplier": 0.208,
+      "estimated_reduction_pct": "~79% (vs cloud-only baseline of 1.0)",
+      "vs_target_50pct": "Well past target with margin; treat 50% as floor, expect 60-70% sustained."
+    }
+  },
+  "context_window_pressure": {
+    "observation_2026_06_27_initial": "Originally concerned that code-review prompts ('paste a file') would exceed Granite-code 8B's 8K context window. With model selection updated to granite4.1 family (both 8b and 30b tiers support 32K-128K practical context), this pressure is largely resolved — most observed prompts fit comfortably in either tier.",
+    "mitigation": "Per L2-AI-002, prompts that exceed the local context budget still route to Claude rather than truncate. Expected to fire rarely with granite4.1 model choice.",
+    "impact_on_reduction_target": "Long-context fallback expected to be a small fraction of delegations. The 79% projected reduction may even be conservative since fewer code reviews need to route to Claude than previously estimated."
+  },
+  "real_project_sources": [
+    "STG (active Cowork project)",
+    "Other Carlano Technology Solutions LLC project work",
+    "Cloud to Ground AI itself (recursive)"
+  ]
+}

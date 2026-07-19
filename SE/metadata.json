@@ -1,0 +1,71 @@
+{
+  "project": {
+    "code": "C2G",
+    "name": "Cloud to Ground AI",
+    "owner": "Andrew Carlile",
+    "entity": "Carlano Technology Solutions LLC",
+    "last_updated": "2026-06-27",
+    "se_framework": "hao-carlile-ground-autoSE"
+  },
+  "license": {
+    "v1": "Apache-2.0",
+    "v1_decision_date": "2026-06-27",
+    "rationale": "Generous permissive license consistent with the 'open source environmental software' values positioning. Patent grant in Apache 2.0 protects users and contributors mildly. Monetization via binary distribution and subscription is fully compatible with Apache 2.0. License-pivot to BSL or similar reserved as future option for v2.0+ if needed.",
+    "monetization_model": "Source under Apache 2.0; binaries distributed for subscription via App Store / notarized DMG channel after free-preview period."
+  },
+  "release_plan": {
+    "v1_phase": "Free public preview via GitHub Releases (notarized DMG, Apache-2.0 source)",
+    "v1_preview_window": "From v1.0 launch through 2026-11-30",
+    "v2_phase": "Paid subscription release",
+    "v2_target_date": "2026-12-01 (provisional — depends on Apple Developer enrollment + ACT-007 paid-mechanism decision by 2026-10-15)"
+  },
+  "product_positioning": {
+    "primary_user_workflow": "User stays in Claude Desktop / Cowork / CLI for normal AI-assisted work. C2G runs in the background as a menu bar item and provides the bridge that lets Claude delegate mechanical work to a locally-installed Granite model. The user benefits from token reduction transparently — they don't change how they work, they just consume fewer Claude tokens for the same tasks.",
+    "secondary_user_workflow": "When the user has no internet, they open C2G's Ground chat window (from the menu bar) and talk directly to the locally-installed Granite model. This is an offline fallback, not the primary surface.",
+    "what_we_sell": "The C2G installer/manager app (sets up Ollama, Granite, the ollama-delegate skill, and the bridge watcher), the maintained ollama-delegate skill itself (kept current as Claude and Granite evolve), the auto-update channel for that skill, and a Ground-mode offline chat fallback.",
+    "what_we_do_not_sell": "Claude access — the user uses their own Claude Desktop / Cowork / CLI install with their own Anthropic subscription or API. The local AI itself — Granite is IBM's, runs on the user's machine, never leaves.",
+    "what_we_do_not_collect": "User content, conversations, files, identifying information. Only opt-in anonymized usage telemetry and opt-in feedback during the free-preview window; both off by default; both never required for the product to function.",
+    "what_c2g_is_not": "C2G is not a Claude harness, not a chat client that competes with Claude Desktop, not a proxy or wrapper for the Anthropic API. It is an installer + bridge + offline fallback. The user's relationship with Claude is unchanged; the relationship that changes is between Claude (in the official client) and the local Granite (via the C2G-installed bridge).",
+    "model_family_commitment": "One model family at a time (granite4.1 at v1.0: 8b small + 30b large). This keeps skill-maintenance load manageable and lets the team ship reliable updates as the AI landscape evolves."
+  },
+  "local_model_tiers": {
+    "small": {
+      "sku": "granite4.1:8b",
+      "quantization": "Q4 default",
+      "resident_memory_target": "~5 GB",
+      "min_host_ram": "16 GB",
+      "context_window_practical": "32K-128K tokens"
+    },
+    "large": {
+      "sku": "granite4.1:30b",
+      "quantization": "Q4 default",
+      "resident_memory_target": "~18 GB",
+      "min_host_ram": "24 GB",
+      "context_window_practical": "32K-128K tokens",
+      "verified_2026_06_27": "Confirmed available on Ollama library; benchmarks claim 8b 'beats 32B' competitors. References: https://ollama.com/library/granite4.1, https://willitrunai.com/blog/granite-4-1-vram-requirements"
+    }
+  },
+  "categories": {
+    "PRD": "Product / user-facing capability (L1 level)",
+    "MOD": "Mode system — Cloud/Hybrid/Ground state machine and transitions",
+    "AI": "AI behavior — model selection, prompting, delegation, response handling",
+    "BRG": "Bridge — IPC protocol between cloud and local AI",
+    "GUI": "User interface — windows, controls, status display",
+    "NET": "Networking — connectivity detection, online/offline state",
+    "PLAT": "Platform — macOS specifics, packaging, distribution, code signing",
+    "PWR": "Power — energy budget, solar compatibility, idle behavior",
+    "OPS": "Operations — install, update, observability, error recovery"
+  },
+  "margin_policy": {
+    "default_margin_fraction": 0.20,
+    "notes": "Default 20% margin on all budgeted quantities. Per-budget overrides allowed and must be logged. G2 applies: any design point below the margin-reduced target requires a logged note."
+  },
+  "operational_environment": {
+    "host_platform": "Apple Silicon Mac (M-series), macOS 14+",
+    "reference_machine": "M5 MacBook Air, 24 GB unified memory",
+    "power_source": "Solar — primary; mains — incidental. Network radio may be off for long periods.",
+    "connectivity": "Intermittent — full broadband to fully offline. Must function across this range.",
+    "user_environment": "Home / off-grid. Non-developer end users included in target.",
+    "notes": "These conditions drive PWR, NET, and PLAT L2 requirements; trace any environment-derived requirement back to one of these conditions."
+  }
+}

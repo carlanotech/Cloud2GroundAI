@@ -1,0 +1,742 @@
+{
+  "last_updated": "2026-07-07 (fifth update — non-disruption req + TBD reconciliation)",
+  "notes": "L1 baselined 2026-06-26. 6 L1s total. 2026-06-27 ARCHITECTURE CORRECTION per Andrew: C2G is NOT a 3-mode chat app competing with Claude Desktop. C2G is (a) an installer/manager macOS app that sets up Ollama + Granite + ollama-delegate skill + bridge watcher LaunchAgent, (b) a background service running as a menu bar item showing bridge status, and (c) a Ground-mode offline chat window for when the user has no internet. Online primary value happens in Claude Desktop / Cowork / CLI — the C2G-installed skill is what lets Claude delegate mechanical work to local Granite. Removed L2s that no longer fit: L2-GUI-002 (mode indicator), L2-GUI-003 (degradation disclosure), L2-GUI-004 (network status — now folded into L2-GUI-010 status panel), L2-MOD-002 (atomic mode transitions — no in-app mode transitions exist), L2-AI-005 (Hybrid user-facing stream — that's Claude Desktop's job), L2-AI-006 (per-response AI attribution — implicit by which app you're in). Reframed: L2-MOD-001 (Ground chat zero-outbound), L2-GUI-005 (setup wizard UI), PRD-003 (installer transparency + data sovereignty). Added: L2-GUI-009 (menu bar status indicator), L2-GUI-010 (status panel), L2-GUI-011 (Ground chat window), L2-OPS-009 (setup wizard install logic), L2-OPS-010 (skill auto-update channel), L2-OPS-011 (bridge watcher as LaunchAgent). Net count unchanged: 6 L1s, 34 L2s. | 2026-07-07: Added C2G-L2-OPS-012 (non-disruptive install/uninstall) traced to PRD-005, following the launchctl bare-domain-bootout logout incident. Resolved OPS-009 install-method TBD (Homebrew-first, ollama.com fallback — design detail). Narrowed OPS-011 location TBD: v1.x = ~/Library/LaunchAgents; sandbox-container deferred to v2.0/ACT-007.",
+  "requirements": [
+    {
+      "id": "C2G-L1-PRD-001",
+      "category": "PRD",
+      "title": "Off-grid conversational availability",
+      "shall": "The system shall enable the user to hold a conversational AI session on the host Mac when no internet connection is available.",
+      "rationale": "Core product premise. The user must not be locked out of AI assistance when they have no network — that is the defining failure mode this product exists to prevent.",
+      "value": "Conversational session = a multi-turn exchange with coherent context across at least 5 turns.",
+      "margin": "N/A (capability requirement, not budgeted)",
+      "parents": [],
+      "children": [
+        "C2G-L2-AI-001",
+        "C2G-L2-AI-002",
+        "C2G-L2-NET-001",
+        "C2G-L2-MOD-001",
+        "C2G-L2-GUI-001",
+        "C2G-L2-GUI-011",
+        "C2G-L2-BRG-001",
+        "C2G-L2-OPS-001"
+      ],
+      "check": "Demonstration. With network disabled at the OS level, complete a ≥5-turn conversation in the C2G app's Ground chat window that produces useful output for at least 3 representative task types (Q&A, short code, summarization).",
+      "status": "baselined",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L1-PRD-002",
+      "category": "PRD",
+      "title": "Cloud-cost reduction via delegation",
+      "shall": "When the user is online, the system shall reduce cloud-AI token consumption for a representative mixed workload, relative to a cloud-only baseline, by routing mechanical subtasks to a local AI.",
+      "rationale": "Economic and energy justification for the project. The hybrid path is what makes the local model pay rent when the user has internet. Without measurable savings, the architecture is not justified.",
+      "value": "Target: ≥50% cloud token reduction on the representative C2G workload (set 2026-06-27 per Andrew). CBE must be ≥60% with 20% margin to claim 50% as closed. The workload itself is observed continuously via delegation telemetry (see L2-OPS-006) rather than defined as a fixed benchmark — ACT-001 stays open as ongoing observation rather than a one-shot definition.",
+      "margin": "20% on the target reduction (design must hit ≥60% on CBE to claim ≥50% as closed).",
+      "parents": [],
+      "children": [
+        "C2G-L2-AI-003",
+        "C2G-L2-AI-004",
+        "C2G-L2-BRG-002",
+        "C2G-L2-OPS-006"
+      ],
+      "check": "Analysis + bench measurement. Define benchmark workload, run it against cloud-only and cloud+bridge configurations, compare token counts.",
+      "status": "baselined",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L1-PRD-003",
+      "category": "PRD",
+      "title": "Installer transparency and data sovereignty",
+      "shall": "The C2G app shall be transparent about what it installs and modifies on the user's machine (Ollama, local model, ollama-delegate skill in Cowork, LaunchAgent for the bridge watcher) and shall provide a status panel showing the current state of every component it manages. All user content (conversations, files, delegation logs) shall remain on the user's machine by default; any upload channel (feedback, anonymized usage) shall require explicit, granular, revocable opt-in.",
+      "rationale": "Trust is the unifying requirement. Since the C2G app is an installer / manager / background service, the user must always be able to see what it has done to their system and what it is currently doing. Identity of the answering AI is implicit by which app the user is in (Claude Desktop = Claude; C2G Ground chat = local Granite), so the earlier 'mode indicator' and 'degradation disclosure' L2s are no longer needed — they were correct for a product that owned a chat UI with multiple modes, which is not what C2G is. Reframed 2026-06-27 after Andrew clarified the product is an installer + Ground-mode fallback, not a competing chat client.",
+      "value": "Status panel shows: Ollama running yes/no, model loaded (name + tier), bridge watcher running yes/no, skill version installed in Cowork, last skill update, opt-in channel states. Default behavior: zero user content leaves the machine. Opt-in upload channels are individually toggleable and off by default.",
+      "margin": "N/A (binary requirement)",
+      "parents": [],
+      "children": [
+        "C2G-L2-GUI-008",
+        "C2G-L2-GUI-010",
+        "C2G-L2-OPS-006",
+        "C2G-L2-OPS-007",
+        "C2G-L2-OPS-008"
+      ],
+      "check": "Inspection of status panel + bench test (network monitor) confirming zero outbound traffic when all opt-in channels are off; correct traffic only on opted-in channels. Inspection of installer-side changes (Keychain entries, LaunchAgent registration, skill install location) matches what status panel reports.",
+      "status": "baselined",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L1-PRD-004",
+      "category": "PRD",
+      "title": "Mains-independent operation",
+      "shall": "The system shall be capable of completing useful AI conversations on the host Mac without requiring mains power assist, when operating in Ground mode.",
+      "rationale": "Project mission alignment. The 'ground' framing depends on the system not silently assuming wall power. The defining user need is renewable / off-mains operation regardless of whether the source is solar, hydro, wind, geothermal, or battery — what the system promises is that it does not require mains assist. Reference machine for measurement (Andrew's M5 Air on solar) is a specific instance of the general capability.",
+      "value": "TBD — define energy-per-conversation target (CBE: ≤ X Wh per representative 5-turn session) and the reference workload it is measured against. Open action ACT-003 / ACT-004.",
+      "margin": "20% on the energy target.",
+      "parents": [],
+      "children": [
+        "C2G-L2-PWR-001",
+        "C2G-L2-PWR-002",
+        "C2G-L2-AI-007",
+        "C2G-L2-BRG-003"
+      ],
+      "check": "Bench measurement on reference machine (M5 Air, 24 GB) with mains disconnected, measuring battery delta per representative session.",
+      "status": "baselined",
+      "tbd": [
+        "energy-per-session target",
+        "reference workload definition"
+      ]
+    },
+    {
+      "id": "C2G-L1-PRD-005",
+      "category": "PRD",
+      "title": "Non-developer accessibility",
+      "shall": "A non-developer user shall be able to install, configure, and use the system to completion of a conversational session without editing config files or using a terminal.",
+      "rationale": "Distribution requirement. The bridge as currently built requires terminal commands; a productized version must not. Excluding non-developers shrinks the user base to roughly zero people who aren't Andrew.",
+      "value": "First-run success rate ≥ 90% in user trials with non-technical users (operational; not yet measurable in current state).",
+      "margin": "N/A at L1.",
+      "parents": [],
+      "children": [
+        "C2G-L2-PLAT-001",
+        "C2G-L2-PLAT-002",
+        "C2G-L2-OPS-002",
+        "C2G-L2-OPS-003",
+        "C2G-L2-OPS-004",
+        "C2G-L2-OPS-009",
+        "C2G-L2-OPS-010",
+        "C2G-L2-OPS-011",
+        "C2G-L2-GUI-005",
+        "C2G-L2-GUI-009",
+        "C2G-L2-OPS-012"
+      ],
+      "check": "User trial. Recruit ≥3 non-technical users, observe install and first conversation, count successes.",
+      "status": "baselined",
+      "tbd": [
+        "user-trial recruitment",
+        "what 'install' looks like — App Store vs notarized DMG"
+      ]
+    },
+    {
+      "id": "C2G-L2-AI-001",
+      "category": "AI",
+      "title": "Local model conversational capability",
+      "shall": "The bundled local model shall produce useful responses across at least 5 conversational turns with coherent context, on the reference machine, with no internet, for the representative C2G workload.",
+      "rationale": "Direct allocation from PRD-001's 5-turn requirement to the AI subsystem. The local model is the sole inference contributor in Ground mode; nothing else can carry the conversation.",
+      "value": "≥5 turns; usefulness ≥ '3 of 3 representative task types' per PRD-001 check.",
+      "margin": "Carry one model size larger than minimum-passing as a fallback option (cheap insurance — change is free on the ground).",
+      "parents": [
+        "C2G-L1-PRD-001"
+      ],
+      "children": [],
+      "check": "Bench test on reference machine — 5-turn conversation against the representative workload (per ACT-001), no network.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-AI-002",
+      "category": "AI",
+      "title": "Local model context window adequacy",
+      "shall": "The local model's effective context window shall accommodate at least 5 turns of representative user input plus model response without context truncation that breaks coherence. Tasks whose prompt or expected output exceed the available local context budget shall be routed to Claude rather than truncated.",
+      "rationale": "5-turn requirement of PRD-001 is meaningless if the context window can't hold 5 turns. Granite 4.1 (both tiers) supports 32K–128K practical context on a capable Mac — large enough to absorb most of Andrew's observed workload including 'paste a file' code reviews. The long-context-to-Claude fallback remains as a guarantee for truly oversized prompts (e.g. multi-file pastes), but is expected to fire rarely with the granite4.1 model choice.",
+      "value": "Effective context ≥ measured average 5-turn token sum × 1.2 for the tier in use. Long-context routing decision happens before delegation.",
+      "margin": "20% headroom embedded in the value (consistent with default margin policy).",
+      "parents": [
+        "C2G-L1-PRD-001"
+      ],
+      "children": [],
+      "check": "Analysis — count tokens in representative 5-turn sessions, compare to per-tier model context size. Bench-test that overflow prompts route to Claude rather than truncate.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-NET-001",
+      "category": "NET",
+      "title": "Connectivity state detection",
+      "shall": "The system shall detect loss and restoration of internet connectivity within 5 seconds (CBE) and shall expose the current state to mode-management and GUI subsystems.",
+      "rationale": "Required by PRD-001 (must enter Ground when offline) and PRD-003 (must surface state to user). Without prompt detection, the user is stranded on a cloud call that will never complete.",
+      "value": "≤5 seconds (CBE), ≤6 seconds with 20% margin.",
+      "margin": "20% on detection latency.",
+      "parents": [
+        "C2G-L1-PRD-001",
+        "C2G-L1-PRD-003"
+      ],
+      "children": [],
+      "check": "Bench test — disable / enable network at OS level, measure time to state update.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-MOD-001",
+      "category": "MOD",
+      "title": "Ground chat zero-outbound operation",
+      "shall": "The C2G app's Ground chat window shall produce zero outbound network calls for inference, user content, or telemetry while in use. All inference shall happen on the user's machine via the locally-installed Granite model.",
+      "rationale": "Direct allocation from PRD-001 + PRD-003. The Ground chat window is the only chat surface inside C2G; whenever it is open, the user must be confident their content is staying local. Zero outbound is enforceable by code review + DNS-blocked test.",
+      "value": "Zero outbound packets attributable to AI inference, user-content sync, or telemetry while in the Ground chat window.",
+      "margin": "N/A (binary).",
+      "parents": [
+        "C2G-L1-PRD-001"
+      ],
+      "children": [],
+      "check": "Inspection (code review) + bench test (network monitor: capture traffic during a Ground chat session, confirm zero relevant outbound packets).",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-GUI-001",
+      "category": "GUI",
+      "title": "UI free of external-runtime dependencies",
+      "shall": "The user interface shall render and function fully without any internet-dependent assets (fonts, scripts, images, web fonts, analytics).",
+      "rationale": "PRD-001 demands a usable session offline. A UI that silently degrades because a CDN-hosted font fails to load violates PRD-001 and PRD-003 simultaneously.",
+      "value": "Zero external network dependencies at runtime.",
+      "margin": "N/A (binary).",
+      "parents": [
+        "C2G-L1-PRD-001"
+      ],
+      "children": [],
+      "check": "Inspection — code review for external URLs + DNS-blocked launch test.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-BRG-001",
+      "category": "BRG",
+      "title": "Bridge offline operability",
+      "shall": "The bridge subsystem shall function for local-only delegation when no internet is available; the bridge protocol shall not require any cloud-side coordination.",
+      "rationale": "PRD-001 demands the local path work offline. The current file-based bridge already meets this — recording it as a requirement protects it against later 'cloud-coordinated' redesigns.",
+      "value": "Bridge round-trip success rate ≥ 99% offline.",
+      "margin": "Inherent — current implementation has no cloud dependency.",
+      "parents": [
+        "C2G-L1-PRD-001"
+      ],
+      "children": [],
+      "check": "Bench test — exercise the bridge with network disabled, measure round-trip success.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-OPS-001",
+      "category": "OPS",
+      "title": "Local model available before first Ground session",
+      "shall": "The local model required for Ground mode shall be present and operational on the user's machine before the first Ground-mode conversation, or the system shall successfully guide its acquisition during install / first run.",
+      "rationale": "PRD-001 demands Ground mode work; PRD-005 demands a non-developer can complete this without terminal. Together they require the local model be either bundled or installed via an in-app flow.",
+      "value": "First-run success rate of local-model availability ≥ 95% under representative network conditions.",
+      "margin": "Embedded in the success-rate target.",
+      "parents": [
+        "C2G-L1-PRD-001",
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Bench test on a fresh machine — install, attempt a Ground-mode session immediately, measure success.",
+      "status": "draft",
+      "tbd": [
+        "bundled vs in-app download — driven by ACT-005 distribution decision"
+      ]
+    },
+    {
+      "id": "C2G-L2-AI-003",
+      "category": "AI",
+      "title": "Delegation routing policy",
+      "shall": "In Hybrid mode the system shall route subtasks to the local model only when (a) the subtask is well-specified in a short prompt and (b) the expected output quality is achievable by the local model for that task class. For non-code delegations, Claude shall verify the local model's output for hallucinations or factual errors before presenting it to the user. For code delegations, no verification pass is required because correctness is established at compile/run time, EXCEPT that science/engineering numerical code shall additionally be verified against at least three published-reference sanity cases before integration, because such code can be silently-wrong (compiles and runs but produces incorrect numbers).",
+      "rationale": "PRD-002 demands token reduction; routing the wrong tasks locally creates rework that costs more cloud tokens than it saves. Per Andrew's 2026-06-27 direction, code work is self-verifying (the user's compiler and runtime catch errors) so we trust local output directly. Non-code work (writing, summarization, Q&A facts) cannot be self-verified by the user — Claude must read the local output and confirm before display, to preserve PRD-003 trust. 2026-06-27 PM update: numerical / scientific code is a third category — it compiles and runs but can be silently-wrong (e.g. eclipse_fraction unit-mismatch bug from the STRUVE thermal delegation produced output 57x too small). Require ≥3 published-reference sanity cases for this class. Cost-wise, verification (read + run sanity cases) is ~0.3x cost vs. regeneration (~1.0x), so the math still favours delegation.",
+      "value": "Mis-route rate (delegations the cloud has to fully rewrite) ≤ 10% on the observed workload. Non-code delegations carry a Claude verification step before display. Verification overhead ≤ 30% of the original cloud-only cost for that delegation.",
+      "margin": "20% on mis-route rate (CBE ≤ 8% to claim ≤ 10% closed).",
+      "parents": [
+        "C2G-L1-PRD-002"
+      ],
+      "children": [],
+      "check": "Bench test — run observed workload through Hybrid mode, tag each delegation as kept-verbatim / patched / rewritten, compute rates. Separately verify non-code delegations carry a verification pass.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-AI-004",
+      "category": "AI",
+      "title": "Local model output usability for delegated tasks",
+      "shall": "For delegated subtasks meeting the routing policy, the local model shall produce output usable verbatim or with minor patches (per the ollama-delegate cost model) on at least 75% of attempts.",
+      "rationale": "From the cost-asymmetry model in the ollama-delegate skill: verbatim use is ~0.1x cloud cost, patched ~0.3x, rewritten ~1.1x. The 75% verbatim-or-patched threshold is what makes PRD-002 hold on the math.",
+      "value": "≥ 75% verbatim-or-patched (CBE: ≥ 80% with 20% margin).",
+      "margin": "20%.",
+      "parents": [
+        "C2G-L1-PRD-002"
+      ],
+      "children": [],
+      "check": "Bench test as part of ACT-001 workload — classify each delegation outcome.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-BRG-002",
+      "category": "BRG",
+      "title": "Bridge round-trip latency budget",
+      "shall": "The bridge round-trip latency for a delegation (request write → response read) shall be ≤ 10 seconds on the reference machine for prompts ≤ 500 tokens.",
+      "rationale": "If bridge round-trip dominates the time savings from delegation, PRD-002 fails on user-perceived speed even if it succeeds on tokens. Observed measurement on 2026-06-26 was ~6s for the is_prime task — gives margin.",
+      "value": "≤10 seconds (CBE: ~6s observed; budget allows for larger prompts).",
+      "margin": "Latitude embedded — CBE is ~60% of budget.",
+      "parents": [
+        "C2G-L1-PRD-002"
+      ],
+      "children": [],
+      "check": "Bench test — instrument the bridge for round-trip timing across representative workload.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-PWR-001",
+      "category": "PWR",
+      "title": "Energy budget per Ground-mode session",
+      "shall": "A representative 5-turn Ground-mode session on the reference machine shall consume ≤ TBD Wh from battery.",
+      "rationale": "Direct allocation from PRD-004. The Wh number lands when ACT-003 closes after ACT-001 defines the workload.",
+      "value": "TBD (CBE pending measurement).",
+      "margin": "20% (applied to ACT-003 target once set).",
+      "parents": [
+        "C2G-L1-PRD-004"
+      ],
+      "children": [],
+      "check": "Bench measurement on reference machine, mains disconnected, against representative workload.",
+      "status": "draft",
+      "tbd": [
+        "energy target (ACT-003)",
+        "reference workload (ACT-001 / ACT-004)"
+      ]
+    },
+    {
+      "id": "C2G-L2-PWR-002",
+      "category": "PWR",
+      "title": "Idle behavior shall not drain battery",
+      "shall": "When no active conversation is in progress, the system shall consume ≤ 0.5 W of additional power above the baseline macOS idle draw on the reference machine.",
+      "rationale": "PRD-004. The energy story breaks if the app pulls 5 W to poll a folder every second. Specifically targets the bridge polling pattern.",
+      "value": "≤0.5 W idle delta (CBE pending; observed idle for the current bridge watcher is unknown but bash-loop based — likely measurable).",
+      "margin": "20%.",
+      "parents": [
+        "C2G-L1-PRD-004"
+      ],
+      "children": [],
+      "check": "Bench measurement — powermetrics or equivalent, app foreground but idle vs. app not running.",
+      "status": "draft",
+      "tbd": [
+        "measured idle baseline"
+      ]
+    },
+    {
+      "id": "C2G-L2-AI-007",
+      "category": "AI",
+      "title": "Tiered local model memory footprint",
+      "shall": "The system shall ship two local-model tiers from the Granite 4.1 family: small (granite4.1:8b at Q4, ~5 GB resident) for Apple Silicon Macs with ≥16 GB RAM, and large (granite4.1:30b at Q4, ~18 GB resident) for Macs with ≥24 GB RAM. At runtime, only one tier is resident; the user picks at install or the system auto-detects machine capability and recommends.",
+      "rationale": "Environment-derived per §3.6 + Andrew's 2026-06-27 direction + 2026-06-27 model survey (granite4.1 launched 2026, beats granite-code on benchmarks, much larger usable context window of 32K–128K vs granite-code's 8K, native code + tool use + structured JSON support). Single-family choice (granite4.1 at two sizes) keeps the skill-maintenance burden manageable per Andrew's '1 or 2 local AIs at a time' preference.",
+      "value": "Tier-small: granite4.1:8b at Q4, ~5 GB resident. Tier-large: granite4.1:30b at Q4, ~18 GB resident. Only one tier loaded at a time. Practical context window: 32K–128K tokens depending on tier and available memory.",
+      "margin": "Implicit headroom of 50%+ of total RAM per tier — small tier on 16 GB Mac leaves 11 GB free; large tier on 24 GB Mac leaves 6 GB free.",
+      "parents": [
+        "C2G-L1-PRD-004"
+      ],
+      "children": [],
+      "check": "Inspection of model + runtime memory footprint per tier, while loaded and active. Bench test on representative hardware (16 GB and 24 GB Apple Silicon Macs).",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-BRG-003",
+      "category": "BRG",
+      "title": "Bridge polling pattern shall be energy-efficient",
+      "shall": "The bridge subsystem shall use event-driven file watching (e.g. FSEvents / kqueue) rather than busy-polling, or shall poll at intervals that meet the L2-PWR-002 idle budget.",
+      "rationale": "PRD-004. The current shell-script watcher uses sleep-loop polling, which is correct but may burn power. The productized bridge needs an efficiency story.",
+      "value": "Idle bridge contribution to L2-PWR-002 budget ≤ 0.1 W.",
+      "margin": "Embedded in the L2-PWR-002 allocation.",
+      "parents": [
+        "C2G-L1-PRD-004"
+      ],
+      "children": [],
+      "check": "Bench measurement — bridge component power consumption while idle.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-PLAT-001",
+      "category": "PLAT",
+      "title": "Distribution mechanism",
+      "shall": "The system shall be distributed via TBD (Mac App Store or notarized DMG, per ACT-005) such that a non-developer can install it from a single user action.",
+      "rationale": "PRD-005. The choice between App Store and notarized DMG is open (ACT-005) but the requirement on the resulting install flow stands either way.",
+      "value": "Install flow ≤ 3 user actions from download to first launch.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Demonstration on a clean macOS install.",
+      "status": "draft",
+      "tbd": [
+        "distribution mechanism (ACT-005)"
+      ]
+    },
+    {
+      "id": "C2G-L2-PLAT-002",
+      "category": "PLAT",
+      "title": "Code signing and notarization",
+      "shall": "Distributed binaries shall be code-signed with a Developer ID Application certificate and notarized by Apple such that Gatekeeper presents no warnings to a default macOS install.",
+      "rationale": "PRD-005. Gatekeeper warnings stop non-developer users cold; that single warning is the difference between success and abandonment for the target audience.",
+      "value": "Zero Gatekeeper warnings on first launch from supported macOS versions.",
+      "margin": "N/A (binary).",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Demonstration on a clean macOS install with default Gatekeeper settings.",
+      "status": "draft",
+      "tbd": [
+        "depends on Apple Developer Program enrollment completion (pending as of 2026-06-26)"
+      ]
+    },
+    {
+      "id": "C2G-L2-OPS-002",
+      "category": "OPS",
+      "title": "Install without terminal or config files",
+      "shall": "The system install shall complete without requiring the user to open a terminal, edit any configuration file, or grant permissions beyond standard macOS application prompts.",
+      "rationale": "PRD-005 explicit. Today's bridge install requires bash; the productized version cannot.",
+      "value": "Zero terminal commands in user-facing install path.",
+      "margin": "N/A (binary).",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "User trial (ACT-006) — observe install, count terminal usages.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-OPS-003",
+      "category": "OPS",
+      "title": "First-run setup with tier selection",
+      "shall": "On first run, the system shall detect machine capability (total RAM, available disk), recommend a local-model tier (small / large per L2-AI-007), let the user override, and ensure the chosen model is operational (bundled or downloaded with progress UI and resumability) before exposing the Ground / Hybrid mode controls.",
+      "rationale": "PRD-005 — a non-developer cannot be expected to `ollama pull granite-code:8b`. PRD-001 — Ground mode must work from day one. L2-AI-007 — two tiers ship; first-run must pick the right one for the user's hardware without surprising them later.",
+      "value": "First-run setup success rate ≥ 95% under representative network conditions. Tier recommendation correct on ≥ 90% of supported Macs (8GB → small, 16GB+ → large).",
+      "margin": "Embedded in success-rate target.",
+      "parents": [
+        "C2G-L1-PRD-001",
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Bench test — fresh macOS install on representative hardware tiers + first launch, measure outcomes and tier recommendations.",
+      "status": "draft",
+      "tbd": [
+        "bundle vs download per tier (linked to ACT-005)"
+      ]
+    },
+    {
+      "id": "C2G-L2-OPS-004",
+      "category": "OPS",
+      "title": "Update mechanism",
+      "shall": "The system shall provide an automatic or one-click update mechanism that does not require terminal or manual file replacement.",
+      "rationale": "PRD-005 — non-developer accessibility extends to updates, not just install. Forcing an LLC owner's customers to terminal-curl an update is the kind of friction the requirement exists to prevent.",
+      "value": "Update completes in one user action.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Demonstration — install version N, push version N+1, measure update flow.",
+      "status": "draft",
+      "tbd": [
+        "update mechanism (Sparkle / App Store auto-update / other — linked to ACT-005)"
+      ]
+    },
+    {
+      "id": "C2G-L2-GUI-005",
+      "category": "GUI",
+      "title": "First-run setup wizard UI",
+      "shall": "The C2G app shall present a first-run setup wizard that walks the user through Ollama installation (if needed), local model selection and download, ollama-delegate skill installation into Cowork, and LaunchAgent registration for the bridge watcher, with progress visible at each step and the ability to abort cleanly.",
+      "rationale": "PRD-005 non-developer accessibility. The user should never need a terminal to get the bridge running. The wizard UI is the user-facing layer over the install logic in L2-OPS-009.",
+      "value": "Setup wizard shown exactly once; re-accessible from settings (for repairs or to reinstall the skill after Cowork is reset). All steps reversible / re-runnable.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Demonstration on a fresh install.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L1-PRD-006",
+      "category": "PRD",
+      "title": "Energy and carbon transparency",
+      "shall": "The system shall display to the user an estimate of the energy consumed and carbon impact of each conversation, calibrated where possible to the user's location and power source, so the user can see what each operating mode actually costs in environmental terms.",
+      "rationale": "PRD-004 (mains-independent operation) is the technical capability; without surfacing what each mode costs in energy and carbon, the user can't internalize the value or make informed mode choices. This also lets users on non-renewable grids see the savings from Hybrid or Ground modes — which broadens the product's appeal beyond off-grid renewable users. Added 2026-06-27 per Andrew's direction on ACT-003 reframe.",
+      "value": "Per-conversation kWh estimate + g CO2e estimate, accessible from the conversation UI. Initial implementation uses national-average grid mix; refined to zip-code-derived grid mix when the user provides their location.",
+      "margin": "N/A at L1.",
+      "parents": [],
+      "children": [
+        "C2G-L2-GUI-006",
+        "C2G-L2-OPS-005",
+        "C2G-L2-AI-008",
+        "C2G-L2-GUI-007"
+      ],
+      "check": "Inspection (does the GUI display the estimate?) + verification of the energy estimate against published per-token energy data for cloud and local inference + verification of the grid mix lookup against a public source.",
+      "status": "baselined",
+      "tbd": [
+        "grid-mix data source (EPA eGRID / Electricity Maps API / other)",
+        "per-token energy estimate methodology (cloud and local)",
+        "default fallback when user declines to share location"
+      ]
+    },
+    {
+      "id": "C2G-L2-GUI-006",
+      "category": "GUI",
+      "title": "Per-conversation carbon impact display",
+      "shall": "The conversation UI shall display the cumulative energy (kWh) and carbon (g CO2e) estimates for the active thread, updated after each response, in the same status area as the mode and network chips.",
+      "rationale": "PRD-006 demands visible transparency. Per-conversation accumulation matches the unit of value the user actually perceives (a 'session' / 'conversation') rather than per-token, which is meaningless to the user.",
+      "value": "Updates within 1 second of a response landing. Shows units explicitly. Hover or click reveals a breakdown by response.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-006"
+      ],
+      "children": [],
+      "check": "Inspection — verify the display updates after each response and shows correct accumulated numbers.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-OPS-005",
+      "category": "OPS",
+      "title": "Grid-mix lookup from user location",
+      "shall": "The system shall map the user's location (zip code, country, or 'off-grid renewable') to a grid carbon intensity value (g CO2e per kWh), with explicit defaults when location is unknown.",
+      "rationale": "PRD-006 requires location-aware estimates. EPA eGRID gives free US zip-code-level data; Electricity Maps gives global. National-average fallback if user declines to share. 'Off-grid renewable' option for users who know they're on solar/wind/hydro/geothermal — sets carbon intensity to a representative low value with a footnote.",
+      "value": "Initial: EPA eGRID national average if no zip code; eGRID zip-code lookup if zip provided; 50 g CO2e/kWh for self-declared off-grid renewable. Updated as data sources improve.",
+      "margin": "N/A — rough draft now, refined over time per PRD-006 evolution clause.",
+      "parents": [
+        "C2G-L1-PRD-006"
+      ],
+      "children": [],
+      "check": "Inspection of the lookup table or API call against the cited public source.",
+      "status": "draft",
+      "tbd": [
+        "primary data source (eGRID download vs Electricity Maps API vs other)",
+        "update cadence for the underlying data"
+      ]
+    },
+    {
+      "id": "C2G-L2-AI-008",
+      "category": "AI",
+      "title": "Per-response energy estimate",
+      "shall": "Every AI response (cloud or local) shall carry an estimated energy cost (Wh) computed from the response's token count and a per-token Wh constant specific to the model and inference location.",
+      "rationale": "PRD-006 requires per-conversation accumulation; per-conversation = sum of per-response. Cloud per-token constants are inferred from public datacenter PUE + measured per-token compute load published by frontier labs (or best-estimate stand-in). Local per-token constants are measured on the reference machine and scaled by ML accelerator usage.",
+      "value": "Per-response Wh estimate is non-zero, monotonically scales with response token count, and is reproducible from the model + token count + lookup constant.",
+      "margin": "Initial estimates carry ±50% uncertainty; refined as measurement matures. UI presents estimates with appropriate hedging language.",
+      "parents": [
+        "C2G-L1-PRD-006"
+      ],
+      "children": [],
+      "check": "Analysis — review the per-token constants against published references + bench measurement on the reference machine for local. Inspection that the estimate appears on each response.",
+      "status": "draft",
+      "tbd": [
+        "cloud per-token Wh constant",
+        "local per-token Wh constant on M5 Air"
+      ]
+    },
+    {
+      "id": "C2G-L2-GUI-007",
+      "category": "GUI",
+      "title": "Location and power-profile capture in onboarding",
+      "shall": "The first-run onboarding flow shall offer the user an optional opportunity to provide their zip code and select their power source (grid / off-grid renewable / unknown), with explicit explanation that this only affects the carbon estimate displayed and is stored locally.",
+      "rationale": "PRD-006 needs location for accurate estimates; PRD-005 (non-developer accessibility) and the general off-grid privacy ethos mean this MUST be optional and locally-stored. Asking once in onboarding avoids friction later.",
+      "value": "User can complete onboarding without providing location (national-average fallback applies). User can edit location later from settings.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-006",
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Inspection of onboarding flow + settings panel for the edit path.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-OPS-006",
+      "category": "OPS",
+      "title": "Delegation telemetry and sampled A/B comparison (local-only)",
+      "shall": "The system shall log every delegation between cloud and local AI to a local-only telemetry file recording (timestamp, task category, prompt tokens, response tokens, outcome class), and shall periodically (≥1 in 10 sampled) execute the same task in cloud-only mode to maintain a measured baseline for the PRD-002 reduction ratio. This file shall never leave the user's machine.",
+      "rationale": "PRD-002 requires a real measurement of token reduction, not an estimate. Sampled A/B is the only honest way to know what the cloud-only baseline would have been. PRD-007 — telemetry is one of the data classes that must stay local; this L2 enforces that for delegation logs specifically.",
+      "value": "Logged delegation outcomes are sufficient to compute aggregate reduction percentage over any time window with ≤5% measurement error. Zero outbound packets attributable to this log.",
+      "margin": "Embedded in 1-in-10 sampling — increases as needed if 5% error not met.",
+      "parents": [
+        "C2G-L1-PRD-002",
+        "C2G-L1-PRD-003"
+      ],
+      "children": [],
+      "check": "Inspection of the log + offline analysis script that computes the reduction percentage from log data.",
+      "status": "draft",
+      "tbd": [
+        "outcome class set (verbatim / patched / rewritten / failed — confirm with ollama-delegate skill)",
+        "log file location and rotation policy"
+      ]
+    },
+    {
+      "id": "C2G-L2-OPS-007",
+      "category": "OPS",
+      "title": "Opt-in user feedback collection",
+      "shall": "The system shall offer the user a weekly feedback prompt (free-text + simple rating). Feedback shall be uploaded only if the user opted in at install or in settings, and uploads shall queue locally while offline.",
+      "rationale": "Andrew's 2026-06-27 direction — free-preview release wants feedback as a way to inform the paid version. Weekly cadence keeps it lightweight. Opt-in is required by PRD-007. Queue-when-offline preserves PRD-001 (off-grid availability) without losing data the user explicitly wants to share.",
+      "value": "Weekly prompt; opt-in toggle in settings; queued uploads succeed within 24h of network availability after consent.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-005",
+        "C2G-L1-PRD-003"
+      ],
+      "children": [],
+      "check": "Inspection of opt-in flow + bench test of queuing across online/offline transitions.",
+      "status": "draft",
+      "tbd": [
+        "feedback endpoint (probably an LLC-owned endpoint; rough draft: a single HTTPS POST to a Cloudflare worker)"
+      ]
+    },
+    {
+      "id": "C2G-L2-OPS-008",
+      "category": "OPS",
+      "title": "Opt-in usage telemetry",
+      "shall": "The system shall optionally collect anonymized usage statistics (conversation counts per mode, average response length, mode switch counts, error categories) and upload them on a per-week or per-launch schedule, only with explicit opt-in. Telemetry shall never include user message content, file paths, or identifying information.",
+      "rationale": "Andrew's 2026-06-27 direction — usage tracking helps inform the paid release. Strict anonymization and per-channel opt-in required by PRD-007.",
+      "value": "Telemetry schema is documented in user-visible privacy notice; opt-in toggle persisted; zero identifying fields in payload.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-003"
+      ],
+      "children": [],
+      "check": "Inspection of telemetry schema + payload capture verifying no content/identifiers.",
+      "status": "draft",
+      "tbd": [
+        "telemetry schema definition",
+        "endpoint (same as feedback or separate)"
+      ]
+    },
+    {
+      "id": "C2G-L2-GUI-008",
+      "category": "GUI",
+      "title": "Privacy / data settings panel",
+      "shall": "The C2G app shall include a settings panel that lists every data channel (feedback, usage telemetry — cloud inference does not apply because C2G itself does not make cloud calls) with its current opt-in state, a one-line description of what is sent, and a per-channel toggle. Defaults: all off.",
+      "rationale": "PRD-003 requires opt-in to be granular and revocable. A user has to be able to see what's enabled at a glance, change any of it, and trust that the change took effect. Settings panel is reachable from the menu bar item.",
+      "value": "Panel reachable from menu bar in ≤2 clicks. Toggles take effect immediately (no app restart).",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-003"
+      ],
+      "children": [],
+      "check": "Inspection of settings panel + demonstration that toggling a channel off stops associated traffic.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-GUI-009",
+      "category": "GUI",
+      "title": "Menu bar status indicator",
+      "shall": "The C2G app shall present a menu bar item (NSStatusItem) as its primary UI surface. The icon shall indicate, at a glance, whether the bridge is active, whether Granite is loaded, and whether the user is online. The menu shall provide entry points to the status panel, the Ground chat window, settings, and quit.",
+      "rationale": "PRD-005 non-developer accessibility + PRD-003 transparency. The product is a background service for the bulk of its operating time (while the user works in Claude Desktop); a menu bar item is the standard macOS UI pattern for that role. Keeps C2G out of the way until invoked but always visible enough to confirm 'yes, the bridge is up.'",
+      "value": "Menu bar icon visible 100% of the time while C2G is running. Icon state updates within 1 second of underlying state change (bridge up/down, model loaded/unloaded, network online/offline).",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Inspection + demonstration — change each underlying state, observe icon update.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-GUI-010",
+      "category": "GUI",
+      "title": "Status panel window",
+      "shall": "The C2G app shall provide a status panel window (opened from the menu bar) showing: Ollama running yes/no with version, current Granite tier loaded with name and version, bridge watcher running yes/no with PID, ollama-delegate skill version installed in Cowork, last skill update timestamp, current connectivity status (online/offline), per-conversation carbon estimate from PRD-006, opt-in channel states summary.",
+      "rationale": "PRD-003 transparency — the user should be able to see, in one window, exactly what C2G is doing to their system right now. Subsumes the earlier separate 'network status display' L2 (since network status now lives in the status panel rather than a separate chip).",
+      "value": "Status panel reachable in ≤1 click from menu bar. All status items refresh within 2 seconds of state change. Manual refresh button.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-003"
+      ],
+      "children": [],
+      "check": "Inspection + demonstration — toggle each underlying state, observe panel update.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-GUI-011",
+      "category": "GUI",
+      "title": "Ground chat window",
+      "shall": "The C2G app shall provide a Ground chat window (opened from the menu bar, or auto-opened when the user attempts a Claude action while offline) presenting a simple conversation interface backed solely by the local Granite model. There is no mode toggle — the window is Ground mode by definition.",
+      "rationale": "PRD-001 off-grid availability. This is the only chat UI inside C2G; for online work the user is in Claude Desktop. Simplicity is a feature — there is no mode confusion because there is only one mode.",
+      "value": "Window opens within 1 second of menu bar action. Conversation, attribution, and energy estimate visible. Supports ≥5-turn coherent context.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-001"
+      ],
+      "children": [],
+      "check": "Demonstration with network disabled — open window, complete a ≥5-turn session.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-OPS-009",
+      "category": "OPS",
+      "title": "Setup wizard install logic",
+      "shall": "The C2G app shall implement an install / first-run flow that programmatically installs Ollama if missing, pulls the recommended granite4.1 tier for the user's hardware, installs the ollama-delegate skill into Cowork's skill directory, and registers a LaunchAgent to keep the bridge watcher running. Each step shall be idempotent and re-runnable from settings.",
+      "rationale": "PRD-005 non-developer accessibility. The user should never type a terminal command to get the bridge working. Idempotency lets us re-run the install to repair a broken state without needing to uninstall first.",
+      "value": "Fresh-install success rate ≥ 90% on supported macOS versions and Apple Silicon hardware. Each step's success or failure surfaced to the wizard UI (L2-GUI-005).",
+      "margin": "Embedded in the success-rate target.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Bench test on a clean macOS install; measure each step's success.",
+      "status": "draft",
+      "tbd": []
+    },
+    {
+      "id": "C2G-L2-OPS-010",
+      "category": "OPS",
+      "title": "Skill auto-update channel",
+      "shall": "The C2G app shall periodically check for updates to the ollama-delegate skill (and its bundled model-tuning files) from a Carlano Technology Solutions LLC-hosted update endpoint and install them automatically, with the option for the user to disable auto-update and update manually instead.",
+      "rationale": "Core to the value proposition: the user pays for the skill staying current as Claude evolves and as local model families evolve. Auto-update is the mechanism that delivers that value continuously, without the user having to track upstream changes.",
+      "value": "Update check ≤ once per day; installed update visible in status panel (L2-GUI-010) with version + installed-on timestamp; rollback path available.",
+      "margin": "N/A.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Bench test — release version N+1 to the endpoint, observe automatic update on a test client, observe rollback path.",
+      "status": "draft",
+      "tbd": [
+        "update endpoint and signing approach",
+        "rollback mechanism (Sparkle vs custom)"
+      ]
+    },
+    {
+      "id": "C2G-L2-OPS-011",
+      "category": "OPS",
+      "title": "Bridge watcher as LaunchAgent",
+      "shall": "The C2G app shall install and manage a LaunchAgent that keeps the bridge watcher script running across reboots and login sessions. The LaunchAgent shall restart the watcher if it crashes and surface the failure to the status panel (L2-GUI-010) if restart attempts fail repeatedly.",
+      "rationale": "PRD-002 token reduction depends on the bridge being continuously available whenever Claude Desktop is in use. Manual restart is unacceptable per PRD-005. LaunchAgent is the standard macOS pattern for a long-running per-user background service.",
+      "value": "Bridge watcher running ≥ 99% of macOS uptime in a normal user session.",
+      "margin": "1% slack for transient restarts.",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Bench test — install, reboot, verify watcher running. Simulate watcher crash, verify restart and status surface.",
+      "status": "draft",
+      "tbd": [
+        "v1.x decision made: LaunchAgent installs to ~/Library/LaunchAgents (non-sandboxed). App-sandbox-container location remains open for v2.0 paid distribution under ACT-007."
+      ]
+    },
+    {
+      "id": "C2G-L2-OPS-012",
+      "category": "OPS",
+      "title": "Non-disruptive install/uninstall of background components",
+      "shall": "Installing, registering, updating, or removing C2G's background components (the bridge-watcher LaunchAgent, watcher launcher/script, and delegate skill) shall not terminate, log out, or otherwise disrupt the user's active macOS login session or any unrelated running processes.",
+      "rationale": "Derived from PRD-005 (a non-developer setup flow that logs the user out or kills their apps is not usable) and reinforces PRD-003 (safe, transparent management of installed components). Added 2026-07-07 after a real incident: LaunchAgentInstaller called `launchctl bootout` on the bare GUI domain (gui/<uid>) instead of the service target (gui/<uid>/<label>), tearing down the whole login session during the register-background-service step.",
+      "value": "Zero user-session disruptions across install, re-register, update, and uninstall. launchctl service-scoped operations only; never a bare-domain bootout.",
+      "margin": "N/A (binary).",
+      "parents": [
+        "C2G-L1-PRD-005"
+      ],
+      "children": [],
+      "check": "Analysis + demonstration: (a) automated guard LaunchAgentInstaller.validateBootoutSafety(), asserted by BridgeSmokeTest, confirms the bootout target is service-scoped; (b) bench test on a clean account confirms register/unregister/update leaves the login session and other apps intact across reboot.",
+      "status": "draft",
+      "tbd": []
+    }
+  ]
+}

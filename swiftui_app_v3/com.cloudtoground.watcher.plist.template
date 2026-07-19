@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Cloud to Ground AI — watcher LaunchAgent template.
+
+  This is a TEMPLATE. The C2G app's LaunchAgentInstaller substitutes the
+  __HOME__ tokens with the user's actual home directory at install time,
+  then writes the result to ~/Library/LaunchAgents/.
+
+  Key design decisions:
+
+  * UserAgent (LaunchAgent), not LaunchDaemon — runs as the user, no sudo
+    needed, sees ~/Documents and ~/.claude.
+
+  * RunAtLoad = true — start when the user logs in.
+
+  * KeepAlive = true — relaunch the watcher if it crashes. Combined with
+    ProcessType = Interactive so launchd doesn't throttle restarts.
+
+  * EnvironmentVariables.PATH — explicitly include /opt/homebrew/bin so
+    the watcher can find `ollama` regardless of the user's shell PATH.
+
+  * EnvironmentVariables.C2G_MODEL — defaults to granite4.1:8b. Users who
+    want the 30b tier or a legacy granite-code model can edit the plist
+    or use the Settings panel (Step 5 feature).
+
+  * StandardOutPath / StandardErrorPath — log to a known location so the
+    Status Panel can surface watcher errors. Rotated by the user's normal
+    log cleanup; we don't manage rotation ourselves at v0.2.
+
+  * Label MUST match the filename minus .plist. launchctl is picky.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cloudtoground.watcher</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__HOME__/Library/Application Support/claude_bridge/start_local_ai.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>C2G_MODEL</key>
+        <string>granite4.1:8b</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>__HOME__</string>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/CloudToGroundAI/watcher.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/CloudToGroundAI/watcher.err.log</string>
+</dict>
+</plist>

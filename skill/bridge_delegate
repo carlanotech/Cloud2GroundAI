@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# bridge_delegate — one callable helper for the file-based delegation bridge.
+#
+# Why this exists (skill feedback 2026-07-13, items #1–#5):
+#   The delegation loop used to live as inline bash that every driver retyped
+#   from SKILL.md Step 4. Any retype could silently drop the consumed.txt ack,
+#   which looks identical to a dead watcher and wedges every future request.
+#   This script makes the ack UNSKIPPABLE BY CONSTRUCTION: response.txt content
+#   is emitted in exactly one place (cmd_poll's matched-id branch), and that
+#   same branch writes consumed.txt before it returns. There is no code path
+#   that hands back a response without acknowledging it.
+#
+# Subcommands:
+#   status            Pre-flight liveness + model identity (reads status.json
+#                     heartbeat; seq-advance is immune to host/sandbox clock skew).
+#   send              Reconcile orphan -> wait idle -> write request (prompt on
+#                     stdin) -> print REQ_ID. Stateless.
+#   poll <REQ_ID>     One <=35s chunk. Prints DONE / WAITING / TIMEOUT /
+#                     WATCHER-DOWN. On DONE it emits the answer AND acks.
+#   run               Convenience: send (prompt on stdin) + one poll chunk.
+#
+# Portable across the Linux Cowork sandbox and a bare macOS host (bash 3.2,
+# no jq / no python required). Bridge auto-located; override with $C2G_BRIDGE.
+#
+# Exit codes: 0 ok/alive/done, 2 usage, 3 dead, 4 no-heartbeat/no-bridge,
+#             5 waiting (poll not yet done), 6 timeout, 7 watcher-down,
+#             8 bridge busy/unclearable.
+
+set -u
+
+CHUNK=${C2G_POLL_CHUNK:-35}  # seconds polled per invocation; under the ~45s sandbox cap
+FALLBACK_BUDGET=120 # matches the watcher's own fallback when no config present
+
+# ── bridge location ───────────────────────────────────────────────────────────
+_find_bridge() {
+    if [ -n "${C2G_BRIDGE:-}" ] && [ -d "$C2G_BRIDGE" ]; then
+        printf '%s\n' "$C2G_BRIDGE"; return 0
+    fi
+    local b
+    b=$(ls -d /sessions/*/mnt/claude_bridge/_bridge 2>/dev/null | head -1)
+    if [ -n "$b" ]; then printf '%s\n' "$b"; return 0; fi
+    if [ -d "$HOME/claude_bridge/_bridge" ]; then
+        printf '%s\n' "$HOME/claude_bridge/_bridge"; return 0
+    fi
+    return 1
+}
+
+# ── portable primitives ───────────────────────────────────────────────────────
+_now()   { date +%s; }
+_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
+
+# json_num key file — print numeric value of a top-level JSON field; 1 if absent.
+# grep -o (no line anchor: JSON may be single-line); [[:space:]] not \s (BSD grep).
+json_num() {
+    local v
+    v=$(grep -Eo "\"$1\"[[:space:]]*:[[:space:]]*-?[0-9]+(\.[0-9]+)?" "$2" 2>/dev/null \
+        | head -n1 | sed -E 's/.*:[[:space:]]*//')
+    [ -n "$v" ] && { printf '%s\n' "$v"; return 0; } || return 1
+}
+
+# json_str key file — print string value of a top-level JSON field; 1 if absent.
+# Value may itself contain colons (e.g. granite4.1:8b); [^"]* stops at the quote.
+json_str() {
+    local v
+    v=$(grep -Eo "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$2" 2>/dev/null \
+        | head -n1 | sed -E 's/.*:[[:space:]]*"//; s/"$//')
+    [ -n "$v" ] && { printf '%s\n' "$v"; return 0; } || return 1
+}
+
+# Delegation budget: same source the watcher reads (Settings "leash length"
+# slider writes bridge_config.json). Fall back to the watcher's own default.
+_budget() {
+    local b="$BRIDGE/bridge_config.json" s=""
+    [ -f "$b" ] && s=$(json_num delegation_timeout_seconds "$b")
+    s=${s%%.*}
+    case "$s" in ''|*[!0-9]*|0) s=$FALLBACK_BUDGET ;; esac
+    printf '%s\n' "$s"
+}
+
+_new_id() { printf 't-%s\n' "$(uuidgen 2>/dev/null | tr -d '-' | tr 'A-Z' 'a-z' | cut -c1-12)"; }
+
+# ── subcommands ───────────────────────────────────────────────────────────────
+
+# status: idle pre-flight. Two schemas in the wild:
+#   legacy (Ollama-era): seq/state/last_seen — liveness = seq advancing across
+#     a short sample (survives clock skew: compares the watcher's counter to
+#     itself, not to our clock).
+#   current (MLX v2.0, watch_mlx_v2.sh): status/last_heartbeat, no seq counter
+#     at all — the watcher rewrites status.json every HEARTBEAT_INTERVAL (5s)
+#     regardless of activity, so liveness = heartbeat recency instead.
+# Run this when NO delegation is in flight; during one, poll's
+# processing.lock check is the liveness signal.
+HEARTBEAT_STALE_AFTER=12  # >2x watch_mlx_v2.sh's 5s HEARTBEAT_INTERVAL
+
+cmd_status() {
+    local f="$BRIDGE/status.json"
+    if [ ! -f "$f" ]; then
+        echo "NO-HEARTBEAT — watcher predates status.json (pre-v0.4) or isn't running"
+        return 4
+    fi
+    local model; model=$(json_str model "$f")
+
+    if grep -q '"last_heartbeat"' "$f" 2>/dev/null; then
+        local st hb age
+        st=$(json_str status "$f")
+        hb=$(json_num last_heartbeat "$f")
+        age=$(( $(_now) - ${hb:-0} ))
+        if [ "$st" = "processing" ]; then
+            echo "BUSY model=${model:-unknown} (watcher alive, mid-inference)"; return 0
+        fi
+        if [ "$st" = "ready" ] && [ "$age" -le "$HEARTBEAT_STALE_AFTER" ]; then
+            echo "ALIVE model=${model:-unknown} (heartbeat ${age}s ago)"; return 0
+        fi
+        echo "DEAD model=${model:-unknown} (status=${st:-unknown}, heartbeat ~${age}s ago)"
+        return 3
+    fi
+
+    local s1 st1
+    s1=$(json_num seq "$f"); st1=$(json_str state "$f")
+    sleep 3
+    local s2 st2
+    s2=$(json_num seq "$f"); st2=$(json_str state "$f")
+    if [ -n "$s1" ] && [ -n "$s2" ] && [ "$s2" -gt "$s1" ] 2>/dev/null; then
+        echo "ALIVE model=${model:-unknown} (seq ${s1}->${s2})"; return 0
+    fi
+    if [ "$st2" = "processing" ]; then
+        echo "BUSY model=${model:-unknown} (watcher alive, mid-inference)"; return 0
+    fi
+    local ls age; ls=$(json_num last_seen "$f"); age=$(( $(_now) - ${ls:-0} ))
+    echo "DEAD model=${model:-unknown} (seq stalled ${s1}->${s2}, last_seen ~${age}s ago)"
+    return 3
+}
+
+# Ack an orphaned response and wait for the bridge to go idle. An orphan is a
+# response.txt with no processing.lock: a prior cycle read it but never acked
+# (the wedge this whole script exists to prevent). Acking releases the watcher.
+_reconcile_and_wait_idle() {
+    local i
+    for i in $(seq 1 15); do
+        if [ ! -f "$BRIDGE/request.txt" ] && [ ! -f "$BRIDGE/response.txt" ] \
+           && [ ! -f "$BRIDGE/processing.lock" ]; then
+            return 0
+        fi
+        if [ -f "$BRIDGE/response.txt" ] && [ ! -f "$BRIDGE/processing.lock" ]; then
+            echo "done" > "$BRIDGE/consumed.txt"   # release orphan
+        fi
+        sleep 1
+    done
+    [ -f "$BRIDGE/response.txt" ] && return 1   # unclearable
+    return 0
+}
+
+# send: prompt on stdin -> REQ_ID on stdout. Never writes a request into a
+# bridge that still holds a response (that is the single-request hang).
+cmd_send() {
+    if ! _reconcile_and_wait_idle; then
+        echo "BRIDGE-BUSY — unclearable stale response; handle in cloud" >&2
+        return 8
+    fi
+    local id prompt
+    id=$(_new_id)
+    prompt=$(cat)
+    {
+        printf '# id: %s\n' "$id"
+        printf '%s\n' "$prompt"
+    } > "$BRIDGE/request.txt"
+    printf '%s\n' "$id"
+    return 0
+}
+
+# poll: one bounded chunk. THE ONLY PLACE a response body is emitted, and it
+# acks in the same branch — so a caller cannot receive an answer un-acked.
+cmd_poll() {
+    local id="$1"
+    [ -n "$id" ] || { echo "usage: bridge_delegate poll <REQ_ID>" >&2; return 2; }
+    if [ ! -f "$BRIDGE/request.txt" ] && [ ! -f "$BRIDGE/response.txt" ] \
+       && [ ! -f "$BRIDGE/processing.lock" ]; then
+        echo "=== WATCHER-DOWN: nothing in flight for $id (request already gone) ==="
+        return 7
+    fi
+    local mtime now elapsed first_chunk budget i
+    mtime=$(_mtime "$BRIDGE/request.txt"); now=$(_now)
+    [ -n "${mtime:-}" ] || mtime=$now
+    elapsed=$(( now - mtime )); first_chunk=0; [ "$elapsed" -lt "$CHUNK" ] && first_chunk=1
+    budget=$(_budget)
+
+    for i in $(seq 1 "$CHUNK"); do
+        if [ -f "$BRIDGE/response.txt" ] && [ ! -f "$BRIDGE/processing.lock" ]; then
+            if [ "$(head -n1 "$BRIDGE/response.txt")" = "# id: $id" ]; then
+                echo "=== DONE ==="
+                tail -n +2 "$BRIDGE/response.txt"
+                echo "done" > "$BRIDGE/consumed.txt"   # unskippable ack
+                return 0
+            fi
+            # id mismatch = a late answer to an earlier request. Not ours: do
+            # NOT ack someone else's response; keep waiting for our id.
+        fi
+        if [ "$first_chunk" = 1 ] && [ "$i" -eq 10 ] \
+           && [ ! -f "$BRIDGE/processing.lock" ] && [ ! -f "$BRIDGE/response.txt" ]; then
+            echo "=== WATCHER-DOWN: no processing.lock in 10s — watcher isn't picking up requests ==="
+            return 7
+        fi
+        sleep 1
+    done
+
+    now=$(_now); elapsed=$(( now - mtime ))
+    if [ "$elapsed" -ge "$budget" ]; then
+        echo "=== TIMEOUT after ~${elapsed}s (budget ${budget}s) — handle in cloud ==="
+        return 6
+    fi
+    echo "=== WAITING (~${elapsed}s of ${budget}s) — re-run: bridge_delegate poll $id ==="
+    return 5
+}
+
+# run: send + one poll chunk. Fast delegations finish in a single call; slow
+# ones print WAITING with the REQ_ID for the orchestrator to re-poll.
+cmd_run() {
+    local id
+    id=$(cmd_send) || return $?
+    echo "REQ_ID=$id"
+    cmd_poll "$id"
+}
+
+# ── dispatch ──────────────────────────────────────────────────────────────────
+BRIDGE=$(_find_bridge) || { echo "NO-BRIDGE — ~/claude_bridge not connected to this session" >&2; exit 4; }
+
+case "${1:-}" in
+    status) cmd_status ;;
+    send)   cmd_send ;;
+    poll)   shift; cmd_poll "${1:-}" ;;
+    run)    cmd_run ;;
+    *) echo "usage: bridge_delegate {status | send <stdin prompt> | poll <REQ_ID> | run <stdin prompt>}" >&2; exit 2 ;;
+esac

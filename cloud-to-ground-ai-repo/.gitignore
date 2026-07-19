@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Bridge runtime artifacts (never commit live bridge state)
+claude_bridge/
+*_bridge/
+request.txt
+response.txt
+consumed.txt
+processing.lock
+
+# Internal / not-for-repo (safety net in case files are ever copied in)
+*Legal_Positioning*
+*Development_Roadmap*
+*Release_Plan*
+carlano-website/

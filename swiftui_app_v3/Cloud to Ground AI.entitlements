@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Cloud to Ground AI — v0.2 entitlements.
+
+  App Sandbox is OFF for this dev build. Rationale:
+
+    - The app must run `pgrep -f start_local_ai.sh` to detect the watcher,
+      `which ollama` to detect the CLI binary, and `ollama list` to enumerate
+      installed models. App Sandbox blocks all three.
+
+    - The app calls http://127.0.0.1:11434/api/tags to probe Ollama liveness.
+      The sandbox can allow this with com.apple.security.network.client,
+      but the Process restrictions above already require sandbox off.
+
+    - Distribution path is not yet decided (ACT-007). Until then, a
+      notarized DMG with sandbox off is the cleanest dev workflow.
+
+  When ACT-007 closes:
+    - If "notarized DMG" wins: leave sandbox off, keep this file as-is.
+    - If "Mac App Store" wins: turn sandbox on, add a privileged helper
+      tool via SMJobBless or NSXPCService for the shell-outs, and add
+      com.apple.security.network.client for the URLSession.
+
+  See Cloud to Ground AI / Architecture Sketch §11 for the distribution
+  trade study (when written).
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

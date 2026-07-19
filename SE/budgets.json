@@ -1,0 +1,5 @@
+{
+  "last_updated": "2026-06-26",
+  "notes": "Empty until L1 is baselined and L2 derivation surfaces what needs budgeting. Anticipated lines: energy-per-session (PWR), memory footprint (PLAT/AI), cold-start latency (BRG/AI), per-turn latency in each mode (AI), token cost reduction (AI/PRD), context-window utilization (AI).",
+  "budgets": []
+}

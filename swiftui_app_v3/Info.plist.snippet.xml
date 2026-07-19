@@ -1,0 +1,56 @@
+<!--
+  Info.plist additions required for the menu-bar-only app.
+  Merge these keys into the project's auto-generated Info.plist via Xcode
+  target settings (Target → Info → Custom macOS Application Target
+  Properties), or paste them into the file if you have it broken out.
+
+  LSUIElement = true: removes the dock icon and prevents the app from
+  appearing in the Cmd-Tab switcher. Standard menu-bar-utility pattern
+  (Bartender, Rectangle, Hidden Bar all use this).
+
+  CFBundleDisplayName: shows "Cloud to Ground AI" in macOS UI surfaces.
+
+  NSHumanReadableCopyright: small thing but App Store will ask for it
+  eventually.
+
+  NSAppTransportSecurity > NSAllowsLocalNetworking: REQUIRED for the
+  BridgeProbe.probeOllama() URLSession call to http://localhost:11434.
+  Without this, App Transport Security silently blocks plain HTTP to
+  localhost and the probe falls through to "Not installed". This is the
+  narrowest exception possible — it allows HTTP only to local addresses,
+  not arbitrary HTTP destinations. Confirmed via diagnostic 2026-06-29.
+-->
+
+<key>LSUIElement</key>
+<true/>
+
+<key>CFBundleDisplayName</key>
+<string>Cloud to Ground AI</string>
+
+<key>CFBundleName</key>
+<string>Cloud to Ground AI</string>
+
+<key>NSHumanReadableCopyright</key>
+<string>Copyright © 2026 Carlano Technology Solutions LLC. Apache-2.0 licensed.</string>
+
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+</dict>
+
+<!--
+  SANDBOX / ENTITLEMENTS — see Cloud to Ground AI.entitlements
+
+  New Xcode SwiftUI projects ship with App Sandbox ON. That blocks:
+    - Process.run() for shell-outs (pgrep, which, ollama list)
+    - URLSession to localhost without network.client entitlement
+    - Process enumeration via pgrep -f
+
+  For v0.2 dev builds: App Sandbox is DISABLED in entitlements. This is
+  the simplest path to getting the probes working with a Personal-Team
+  cert and an unnotarized DMG distribution. ACT-007 will revisit when we
+  decide the distribution channel:
+    - Notarized DMG outside the App Store → sandbox can stay off
+    - Mac App Store → sandbox required + helper-tool XPC pattern for shell
+-->
