@@ -1,6 +1,6 @@
 // c2g-mlx — minimal local inference CLI for the Cloud2Ground bridge.
 //
-// Two modes:
+// Three modes:
 //   one-shot (default):  read a prompt (`--file <path>` or stdin), load the
 //     model, generate ONE completion, print it, exit. Used directly (see
 //     granite_helper.sh) and is what watch_mlx_v2.sh used before resident
@@ -12,18 +12,25 @@
 //     requests. This matters: the delegation bridge's requests are
 //     independent one-off tasks, not turns in a conversation — reusing one
 //     ChatSession across them would let task N's answer be contaminated by
-//     tasks 1..N-1's unrelated prompts. (A future persistent-chat feature
-//     that DOES want continuity should reuse one ChatSession across
-//     `respond()` calls instead — a deliberately different code path.)
+//     tasks 1..N-1's unrelated prompts. Used by watch_mlx_v2.sh.
+//   --chat: same loop and wire protocol as --resident, but creates ONE
+//     ChatSession before the loop and reuses it for every request — real
+//     conversation continuity, MLX's own session state carrying context
+//     forward instead of the caller resending full history each turn. Used
+//     by the Ground chat feature (Cloud2Ground/LocalMLXChatClient.swift),
+//     which spawns one of these per app session. If C2G_MLX_SYSTEM_PROMPT
+//     is set, it's passed as the session's `instructions:` (Ground chat uses
+//     this to deliver its <<<FILE:>>> convention system prompt — see
+//     Conversation.swift's fileFormatSystemPrompt).
 //
 // Resident-mode wire protocol (line-based, so it works over a plain named
 // pipe with no length-prefixing): a request is one or more lines followed by
 // a line that is exactly `<<<C2G_MLX_REQUEST_END>>>`. A response is the
 // completion text followed by a line that is exactly
-// `<<<C2G_MLX_RESPONSE_END>>>`. The caller (watch_mlx_v2.sh) is responsible
-// for keeping its write end of the request pipe open for the whole resident
-// session — closing it between requests would deliver a spurious EOF here
-// and end the loop after just one request.
+// `<<<C2G_MLX_RESPONSE_END>>>`. The caller is responsible for keeping its
+// write end of the request pipe open for the whole resident session —
+// closing it between requests would deliver a spurious EOF here and end the
+// loop after just one request.
 //
 // No Ollama. No daemon library. First run downloads the weights to the
 // Hugging Face cache (~/.cache/huggingface or ~/Documents/huggingface
@@ -52,6 +59,11 @@ let modelId = ProcessInfo.processInfo.environment["C2G_MLX_MODEL"]
 // must actually read it (2026-07-19 fix: this used to silently fall back to
 // the library's own default of 0.6, not the documented 0.2).
 let temperature = Float(ProcessInfo.processInfo.environment["C2G_MLX_TEMPERATURE"] ?? "") ?? 0.2
+
+// Only meaningful in --chat mode — see file header. nil/empty means no
+// system instructions (matches ChatSession's own default).
+let systemPromptEnv = ProcessInfo.processInfo.environment["C2G_MLX_SYSTEM_PROMPT"]
+let systemPrompt: String? = (systemPromptEnv?.isEmpty == false) ? systemPromptEnv : nil
 
 let requestEndMarker = "<<<C2G_MLX_REQUEST_END>>>"
 let responseEndMarker = "<<<C2G_MLX_RESPONSE_END>>>"
@@ -110,13 +122,22 @@ func readResidentRequest() -> String? {
     return nil // EOF — caller closed the pipe, shut down gracefully
 }
 
-func runResident() async throws {
+// persistentSession: false (--resident, the delegation bridge) creates a
+// fresh ChatSession per request — see file header for why. true (--chat,
+// Ground chat) creates ONE session before the loop and reuses it for every
+// request, so MLX's own session state carries conversation context forward.
+func runResident(persistentSession: Bool) async throws {
     let t0 = Date()
-    log("c2g-mlx: resident mode — loading \(modelId) …")
+    let modeLabel = persistentSession ? "chat" : "resident"
+    log("c2g-mlx: \(modeLabel) mode — loading \(modelId) …")
     let container = try await #huggingFaceLoadModelContainer(
         configuration: ModelConfiguration(id: modelId)
     )
     log("c2g-mlx: model resident, ready for requests (load took \(String(format: "%.2f", Date().timeIntervalSince(t0)))s)")
+
+    let sharedSession: ChatSession? = persistentSession
+        ? ChatSession(container, instructions: systemPrompt, generateParameters: makeGenerateParameters())
+        : nil
 
     while let prompt = readResidentRequest() {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -128,27 +149,28 @@ func runResident() async throws {
 
         let reqStart = Date()
         do {
-            // Fresh session per request — see the file header comment for why
-            // this must NOT be reused across requests in this mode.
-            let session = ChatSession(container, generateParameters: makeGenerateParameters())
+            let session = sharedSession
+                ?? ChatSession(container, generateParameters: makeGenerateParameters())
             let output = try await session.respond(to: trimmed)
-            log("c2g-mlx: resident request done (\(output.count) chars) in \(String(format: "%.2f", Date().timeIntervalSince(reqStart)))s")
+            log("c2g-mlx: \(modeLabel) request done (\(output.count) chars) in \(String(format: "%.2f", Date().timeIntervalSince(reqStart)))s")
             print(output)
         } catch {
             // Don't let one bad request kill the warm process — every
             // subsequent request would then pay a full reload.
-            log("c2g-mlx: resident request failed: \(error)")
+            log("c2g-mlx: \(modeLabel) request failed: \(error)")
             print("ERROR: \(error)")
         }
         print(responseEndMarker)
         fflush(stdout)
     }
-    log("c2g-mlx: resident mode — stdin closed, shutting down")
+    log("c2g-mlx: \(modeLabel) mode — stdin closed, shutting down")
 }
 
 // ── Dispatch ─────────────────────────────────────────────────────────────────
-if CommandLine.arguments.contains("--resident") {
-    try await runResident()
+if CommandLine.arguments.contains("--chat") {
+    try await runResident(persistentSession: true)
+} else if CommandLine.arguments.contains("--resident") {
+    try await runResident(persistentSession: false)
 } else {
     try await runOneShot()
 }
