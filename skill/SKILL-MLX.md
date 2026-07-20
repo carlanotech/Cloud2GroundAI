@@ -1,6 +1,6 @@
 ---
 name: mlx-delegate
-version: 2.0.0
+version: 2.4.0
 description: >
   Standing operating procedure for routing mechanical subtasks from a cloud
   AI assistant to a local Granite model running on MLX-Swift via the file-based
@@ -72,6 +72,14 @@ Expected outputs for MLX v2.0:
 | `DEAD …` | 3 | Heartbeat frozen | Watcher crashed; ask user to restart |
 | `NO-HEARTBEAT …` | 4 | status.json missing | **MLX watcher always writes heartbeat** — this means watcher isn't running |
 | `NO-BRIDGE …` | 4 | Bridge folder not found | Connect `~/claude_bridge` or handle in cloud |
+
+**The watcher is a LaunchAgent (`com.cloud2ground.mlx-watcher-dev`), independent
+of any GUI app or IDE.** Confirmed 2026-07-19: closing Xcode (which warned it
+would "stop Cloud2Ground") killed only the debug-launched menu-bar GUI — the
+watcher kept running with a fresh heartbeat. The bridge protocol talks to the
+watcher through files, never through the GUI app. Don't assume the menu-bar
+app or an IDE needs to be open for delegation to work, and don't relaunch
+anything based on that assumption — run Step 1's `status` check first.
 
 **Key difference from Ollama version:** `NO-HEARTBEAT` now definitively means
 "watcher not running" (no pre-v0.4 fallback needed). The MLX watcher always
@@ -159,6 +167,13 @@ processing is async while user works with Claude).
 **Known limitations:**
 - Slightly slower (~5-10s) but user isn't waiting (async)
 - Larger model means first load takes longer (~30s on cold start)
+- **Will sometimes invent plausible-looking behavior instead of leaving a
+  case unhandled — even when the spec explicitly rules it out.** Confirmed
+  2026-07-19: asked for a diff that "compares per shared axis" (spec's exact
+  words), it still invented a `master: None` result for an axis present on
+  only one side — a case the spec's own sentence already excluded. This is
+  not an ambiguous-spec failure like the ones below; re-read generated code
+  against the spec's explicit sentences, not just for obviously wrong output.
 
 **Example delegations that work well:**
 ```bash
@@ -275,7 +290,75 @@ These would have been borderline with 2B but are solid with 8B.
 
 ---
 
-## Step 4 — Send the request and wait for response
+## Prompt-writing checklist (avoid known failure modes)
+
+**The model is reliable on sharply-bounded, single-shape functions and
+degrades as soon as it has to *infer* something the prompt didn't state
+outright.** Confirmed on a real project (2026-07-19, 4 delegations): two of
+three broken outputs traced back to the prompt leaving a decision implicit,
+not to the model reasoning badly. Before sending a prompt, check it against
+this list:
+
+- **Any argument or value that can take more than one shape:** state the
+  exact discriminator condition to branch on. Don't describe the shapes and
+  trust the model to infer how to tell them apart — `isinstance(x, dict)`
+  will not distinguish "a dict that means one value" from "a dict that means
+  several," and the model will pick one branch for both.
+- **Any numeric output field with a naming hint** (`_pct`, `_ms`, etc.):
+  state the scaling/units explicitly even if the name seems self-evident.
+  Don't assume `_pct` implies `×100` — say so.
+- **"What happens if X is missing/absent":** answer it directly in the
+  prompt. Don't leave it implied by the rest of the spec.
+- **Validation/reasonableness checks:** state the default for
+  unrecognized or edge-case input explicitly (flag it vs. silently accept
+  it). Whatever this project's default should be, name it — don't let the
+  model pick.
+
+If a task needs several of these spelled out, that's a signal it's closer to
+the >100-word cloud line than it looks — see Step 3.
+
+---
+
+## Step 4 — For long or multi-part prompts, confirm understanding first
+
+Applies when the prompt is pushing toward the 100-word cloud/local line
+(roughly 40+ words) or bundles several sub-tasks into one request. Short,
+single-purpose prompts — the common case, if Step 3's chunking did its job —
+skip straight to Step 5; this adds a round-trip, so it's not worth it for
+anything already bite-sized.
+
+Send a cheap probe before the real prompt, using the same primitives as
+everything else here:
+
+```bash
+PROBE='In one sentence, restate what you are being asked to build, and name
+anything ambiguous or missing. Do not write code yet.'
+REQ_ID=$(printf '%s' "$PROBE" | bash "$BD" send)
+bash "$BD" poll "$REQ_ID"
+```
+
+Evaluate the restatement:
+
+| Restatement says | Do |
+|---|---|
+| Matches your intent, no gaps flagged | Proceed to Step 5 with the full prompt |
+| Missing a detail you can supply | Add it to the real prompt and send once — no need to re-probe |
+| Flags a real ambiguity needing judgment | Handle in cloud — same signal as a failed Step 3 verbatim test |
+| Restatement is generic or off-target | Small model isn't tracking this one — handle in cloud |
+
+**Why restate-and-flag instead of a confidence score:** asking Granite to
+rate its own confidence (e.g. "1–5, how sure are you?") isn't reliable —
+small models tend to answer "confident" regardless of whether they actually
+are. Asking it to restate the task in its own words gives *you* something
+concrete to judge, instead of trusting its self-assessment.
+
+This costs one extra request against the delegation budget and counts toward
+`savings.json`'s `total_requests` like any other call — worth it only when
+the prompt is long enough that a misfire would cost more than the probe.
+
+---
+
+## Step 5 — Send the request and wait for response
 
 **Exactly same as v0.4.0:**
 
@@ -294,18 +377,33 @@ bash "$BD" poll "$REQ_ID"
 
 Outcomes: `=== DONE ===`, `=== WAITING … ===`, `=== TIMEOUT … ===`, `=== WATCHER-DOWN … ===`
 
-**Nothing changed here** — same helper, same protocol.
+**`TIMEOUT` now means genuinely dead, not just "over budget"** (fixed
+2026-07-19): if `processing.lock` is still present when the budget is hit,
+`poll` reports `WAITING`, not `TIMEOUT` — a slow-but-alive job (long
+pattern-completion generations especially) keeps getting polled instead of
+being reported as a failure it isn't. Re-poll on `WAITING` same as always.
 
 ---
 
-## Step 5 — Evaluate, smoke-test, and use the result
+## Step 6 — Evaluate, smoke-test, and use the result
 
 1. **Read it** for obvious wrongness
 2. **Smoke-test code before using it:**
    - For functions: test on known input/output pairs
    - For configs: validate syntax
    - For commands: dry-run first
-3. **Then:**
+3. **If the code serializes a `dict`/JSON output built from a `set()` (or
+   anything else without guaranteed order) into a file meant to be diffed,
+   checked into git, or compared run-to-run: verify the output is
+   deterministic, not just correct.** Confirmed 2026-07-19: a generator
+   iterated a Python `set()` for property order — hash-randomized per
+   process — and reordered every material's properties on every rerun with
+   zero actual value changes. Harmless on its own, but this whole
+   evaluation step leans on diffs meaning something; a non-deterministic
+   generator buries real regressions in reorder noise until one actually
+   matters. Fix is the same either way: iterate a stable, declared order,
+   never raw set/dict order.
+4. **Then:**
    - Looks good → use it, note *(handled locally via Granite 8B on MLX)*
    - Minor issues → fix and use
    - Clearly wrong → discard, handle in cloud
@@ -338,6 +436,14 @@ partially right most of the time, delegation wins.
 **With 8B:** The "partially right" case is even rarer. The 8B model gets it
 fully right more often than 2B did.
 
+**A session can legitimately delegate nothing, and that's the routing table
+working, not a shortfall.** Confirmed 2026-07-19: a full multi-hour session
+(investigation, cross-file reconciliation logic, a non-determinism bug, an
+engineering judgment call) delegated zero tasks — every one of them was
+explicitly a "keep in cloud" case per Step 3's routing table. Don't delegate
+something just to have a delegation count; a 0% rate on a session shaped like
+that is the table doing its job.
+
 ---
 
 ## MLX-specific notes
@@ -369,6 +475,42 @@ writing a special header in request.txt. Not implemented yet.
 
 ---
 
+## Autonomous / overnight sessions
+
+Notes specific to unattended runs (long delegation sessions, overnight
+work), gathered 2026-07-19:
+
+- **Bypass-permissions mode doesn't apply retroactively mid-session.**
+  Toggling it partway through an existing session doesn't stop prompts from
+  appearing — it only takes effect from a fresh session start. If a session
+  is planned to run unattended, turn it on *before* starting, not after
+  hitting the first prompt. (Workaround if you're already mid-session:
+  start a new session continuing the same context — see the commit-often
+  note below for why that's safe.)
+- **Scoped Bash allowlist rules are fragile to invocation-style drift.**
+  A prefix-wildcard rule like `Bash(python3 "<abs path>/foo/*)"` only
+  matches that literal invocation string — `cd "$D" && python3 foo.py
+  <relative args>` is a different string and won't match, triggering the
+  exact prompt the rule was meant to avoid. Either commit to one exact
+  invocation style for every command a scoped rule needs to match, or use
+  session-level bypass-permissions for genuinely unattended work (with the
+  timing caveat above).
+- **Commit early, often, and atomically, with real message detail.** A
+  fresh session with zero memory of the conversation should be able to pick
+  up a project correctly from `git log` alone. Treat conversation memory as
+  convenience, never as the only record of what happened or why — this is
+  what makes a forced session restart (e.g. from the bypass-mode timing
+  issue above) a non-event instead of a risk.
+- **A ProtonDrive-synced (or any cloud-synced) folder can produce spurious
+  sync-conflict duplicate files** if a script rewrites the same file
+  repeatedly in a short window — e.g. rerunning a generator three times
+  while testing produces `foo (#Edit conflict...).json` when sync races a
+  write. Before touching either file, diff the duplicate against the real
+  one; if byte-identical, it's pure sync-timing noise, not a real conflict —
+  delete it and add the pattern to `.gitignore`.
+
+---
+
 ## On debugging sessions that don't involve delegation
 
 Same as v0.4.0:
@@ -379,6 +521,62 @@ Same as v0.4.0:
 ---
 
 ## History
+
+**v2.4.0 (2026-07-19) — orchestrator-level lessons from the same session:**
+- Source: `SKILL_LESSONS_2026-07-19.md`, written alongside the v2.3.0 session
+  as a separate pass over what the session implied for the skill itself
+- Step 1: documented that the MLX watcher LaunchAgent is independent of any
+  GUI app or IDE — confirmed live that closing Xcode killed only the
+  debug-launched menu-bar app, not the watcher
+- Economic-argument section: noted that a session can legitimately delegate
+  zero tasks when every task shape hits Step 3's own "keep in cloud" rows —
+  that's the routing table working, not a gap to feel bad about
+- Step 6: added a determinism check alongside correctness — any generator
+  serializing a `dict`/JSON output built from a `set()` (unordered,
+  hash-randomized per process) into a file meant to be diffed or
+  version-controlled needs a stable declared iteration order, or every
+  regeneration produces full-file diff noise that buries real regressions
+- New **Autonomous / overnight sessions** section: bypass-permissions mode
+  only takes effect from a fresh session start, not mid-session; scoped Bash
+  allowlist rules only match one exact invocation string; commit early/often/
+  atomically so a forced restart costs nothing; cloud-synced folders (e.g.
+  ProtonDrive) can produce spurious sync-conflict duplicate files under rapid
+  repeated writes — diff against the real file and gitignore the pattern if
+  identical
+
+**v2.3.0 (2026-07-19) — lessons from first real-project test session:**
+- Source: Material Optimization project, 4 delegations, 3 correctly not
+  shipped (caught at Step 6, not after)
+- Fixed `bridge_delegate`'s `cmd_poll`: `TIMEOUT` was firing purely on
+  elapsed time, without checking whether `processing.lock` was still
+  present. A 10-test generation blew the 120s budget while genuinely still
+  running, was reported as `TIMEOUT`, and completed correctly on the very
+  next poll. Now: budget exceeded + `processing.lock` still present →
+  `WAITING`, not `TIMEOUT`. Applied to all three deployed copies (outer
+  `skill/`, bundled Cloud2Ground copy, and the live
+  `~/.claude/skills/mlx-delegate/` copy orchestrators actually resolve)
+- New **Prompt-writing checklist** section (between Step 3 and Step 4):
+  name the exact shape-discriminator instead of describing shapes and
+  trusting `isinstance`-style inference; state scaling/units on `_pct`-style
+  fields explicitly; answer "what if X is missing" directly; state the
+  default for unrecognized/edge-case input explicitly for validation tasks
+- New known limitation on Granite 3.3-8B: will sometimes invent plausible
+  extra behavior even when the spec's explicit wording already rules it
+  out — not the same failure mode as an ambiguous spec, and the checklist
+  above won't catch it; only re-reading against the spec's exact sentences
+  will
+
+**v2.2.0 (2026-07-19) — confirm-first for long prompts:**
+- New Step 4: for prompts near the 100-word local/cloud line (or bundling
+  multiple sub-tasks), send a cheap "restate the task and flag ambiguity"
+  probe before the real request, using the same `bridge_delegate`
+  `send`/`poll` primitives — no protocol or `bridge_delegate` changes needed
+- Deliberately not a confidence score — small models self-report as
+  confident regardless of accuracy; restating the task gives the
+  orchestrator something concrete to judge instead
+- Skip this step for short, single-purpose prompts (the common case when
+  Step 3's chunking is doing its job) — the extra round-trip only pays for
+  itself on prompts long/complex enough that a misfire is expensive
 
 **v2.1.0 (2026-07-18) — MLX-only, no Ollama fallback:**
 - Dropped the "backward compatibility with Ollama" path — v2.0 ships MLX-only
@@ -442,6 +640,6 @@ I've delegated this to your local Granite 8B model running on MLX-Swift.
 
 ---
 
-*MLX Edition — v2.0.0*  
+*MLX Edition — v2.4.0*  
 *Maintained alongside MLX watcher v2.0-phase1*  
 *Pure Swift • Zero Ollama • Mac-native*
