@@ -17,6 +17,9 @@
 #                     stdin) -> print REQ_ID. Stateless.
 #   poll <REQ_ID>     One <=35s chunk. Prints DONE / WAITING / TIMEOUT /
 #                     WATCHER-DOWN. On DONE it emits the answer AND acks.
+#                     TIMEOUT only fires once the budget is blown AND
+#                     processing.lock is gone — a job still confirmed BUSY
+#                     past budget reports WAITING, not TIMEOUT (see cmd_poll).
 #   run               Convenience: send (prompt on stdin) + one poll chunk.
 #
 # Portable across the Linux Cowork sandbox and a bare macOS host (bash 3.2,
@@ -182,6 +185,17 @@ cmd_poll() {
 
     now=$(_now); elapsed=$(( now - mtime ))
     if [ "$elapsed" -ge "$budget" ]; then
+        # processing.lock still present = watcher confirmed still working this
+        # request, not stuck. Budget is a soft "should be done by now" signal,
+        # not proof of death — a slow-but-alive job (e.g. a long
+        # pattern-completion generation) must not be reported as a terminal
+        # failure while it is actively still running (skill test 2026-07-19:
+        # a 10-test generation blew the 120s budget, was still BUSY, and
+        # completed correctly on the very next poll).
+        if [ -f "$BRIDGE/processing.lock" ]; then
+            echo "=== WAITING (~${elapsed}s, past budget ${budget}s but watcher still processing) — re-run: bridge_delegate poll $id ==="
+            return 5
+        fi
         echo "=== TIMEOUT after ~${elapsed}s (budget ${budget}s) — handle in cloud ==="
         return 6
     fi

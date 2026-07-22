@@ -1,0 +1,20 @@
+{
+  "_doc": "Single source of truth for the MLX Granite models Cloud2Ground supports. Edit THIS FILE when a model name changes or a new tier is added — watch_mlx_v2.sh, the Setup Wizard (MLXModels.swift), and the LaunchAgent plist all read the default from here (directly, or via a synced copy) instead of hand-copying model ids. Canonical copy: mlx_poc/mlx_models.json. Cloud2Ground/Cloud2Ground/mlx_models.json is a bundled mirror for the Xcode app — kept in sync by hand, same convention already used for SKILL-MLX.md's three deployed copies (outer skill/, bundled Cloud2Ground copy, live ~/.claude/skills/mlx-delegate/ copy). WatcherScriptInstaller copies the bundled mirror to the installed watcher directory so the production script's co-located lookup works the same way as the dev copy here.",
+  "default_model_id": "mlx-community/granite-3.3-8b-instruct-8bit",
+  "models": [
+    {
+      "id": "mlx-community/granite-3.3-8b-instruct-8bit",
+      "display_name": "Granite 3.3 8B (default — best quality)",
+      "size_gb": 8,
+      "role": "default",
+      "recommended_timeout_seconds": 60
+    },
+    {
+      "id": "mlx-community/granite-3.3-2b-instruct-8bit",
+      "display_name": "Granite 3.3 2B (fast mode)",
+      "size_gb": 2.5,
+      "role": "fast",
+      "recommended_timeout_seconds": 30
+    }
+  ]
+}

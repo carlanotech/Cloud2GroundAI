@@ -3,10 +3,19 @@
 set -u
 
 BRIDGE="${C2G_BRIDGE:-$HOME/claude_bridge/_bridge}"
-# Default matches SKILL-MLX.md's documented default (8B for quality; the
-# 2B fast-mode fallback produced unreliable code output in testing — see
-# skill/bridge_delegate test notes 2026-07-18).
-MODEL="${C2G_MLX_MODEL:-mlx-community/granite-3.3-8b-instruct-8bit}"
+
+# Default model comes from mlx_models.json (co-located with this script,
+# same directory WatcherScriptInstaller.swift installs it to) — that file
+# is the single source of truth per its own _doc field, not this script.
+# The literal fallback below only fires if the registry is missing or jq
+# isn't installed, so a bare dev checkout without either still runs.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REGISTRY="${C2G_MLX_MODELS_JSON:-$SCRIPT_DIR/mlx_models.json}"
+DEFAULT_MODEL_FALLBACK="mlx-community/granite-3.3-8b-instruct-8bit"
+if [ -f "$REGISTRY" ] && command -v jq > /dev/null 2>&1; then
+    REGISTRY_DEFAULT=$(jq -r '.default_model_id // empty' "$REGISTRY" 2>/dev/null)
+fi
+MODEL="${C2G_MLX_MODEL:-${REGISTRY_DEFAULT:-$DEFAULT_MODEL_FALLBACK}}"
 TEMPERATURE="${C2G_MLX_TEMPERATURE:-0.2}"
 HEARTBEAT_INTERVAL=5
 
@@ -21,7 +30,16 @@ IDLE_UNLOAD_SECONDS=$(( ${C2G_MLX_IDLE_UNLOAD_MINUTES:-5} * 60 ))
 REQ_END_MARKER="<<<C2G_MLX_REQUEST_END>>>"      # must match main.swift exactly
 RESP_END_MARKER="<<<C2G_MLX_RESPONSE_END>>>"    # must match main.swift exactly
 
-DEFAULT_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/c2g-mlx/.build/arm64-apple-macosx/release/c2g-mlx"
+# Production (WatcherScriptInstaller / MLXInstaller): binary sits flat,
+# right next to this script, at ~/Library/Application Support/claude_bridge/.
+# Dev (this file run straight out of mlx_poc/): binary is the SPM build
+# product, nested under c2g-mlx/.build/.../release/. Check flat first since
+# that's the common case once installed; fall back to the dev-tree path.
+if [ -x "$SCRIPT_DIR/c2g-mlx" ]; then
+    DEFAULT_BIN="$SCRIPT_DIR/c2g-mlx"
+else
+    DEFAULT_BIN="$SCRIPT_DIR/c2g-mlx/.build/arm64-apple-macosx/release/c2g-mlx"
+fi
 BIN="${C2G_MLX_BIN:-$DEFAULT_BIN}"
 
 export C2G_MLX_MODEL="$MODEL"
