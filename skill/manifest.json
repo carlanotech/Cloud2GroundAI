@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "version": "2.7.0",
+  "channel": "stable",
+  "released_at": "2026-08-01T19:59:47Z",
+  "payload_url": "https://raw.githubusercontent.com/carlanotech/Cloud2GroundAI/main/skill/skill-2.7.0.zip",
+  "payload_sha256": "66351700789c326043def07c343e0b911ab1197756b520729d635da4162ed243",
+  "release_notes": "Skill 2.7.0 — corrections, not additions. Generation timing was wrong in four places: '~5-10s' for the 8B model is true only of one-liners, while measured reality is about 2s to load the model and anywhere from 15s for a short function to over 4 minutes for a full test file. The wrong figure was being used to justify a routing decision. The rule that follows is now stated explicitly: poll until a terminal marker and never budget a fixed number of polls, because a cold start almost always returns WAITING on the first chunk. The Granite 3.3-2B sections were removed entirely — those weights are no longer installed, so the guidance would have routed work to a missing model and triggered a silent multi-GB download. A new first entry in the prompt-writing checklist covers the highest-value habit: say what to do, never what not to do. Negative instructions fail on this model in both directions, evidenced by two independent sessions — 'structure only, no physics values' produced invented tests anyway, and 'return only the code, no explanation' caused an outright refusal with an apology preamble. Positive enumeration fixed both. The changelog moved to HISTORY.md, taking SKILL.md from 793 to 616 lines: shorter and more correct, since a document that flags everything emphasizes nothing.",
+  "_doc": "Skill update manifest, consumed by the Mac app's SkillUpdateManager. Served from raw.githubusercontent.com/carlanotech/Cloud2GroundAI/main/skill/manifest.json. As of 2.7.0 the payload is a plain file on main rather than a GitHub release asset — this repo no longer publishes releases."
+}
